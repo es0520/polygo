@@ -1,4 +1,7 @@
 -- Supabase Dashboard > SQL Editor에서 한 번 실행하세요.
+-- ============================================================
+-- Migration 1: 초기 스키마 (decks/words/mistakes)
+-- ============================================================
 create table if not exists public.decks (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
@@ -29,7 +32,9 @@ create policy "own decks" on public.decks for all to authenticated using ((selec
 create policy "own deck words" on public.words for all to authenticated using (exists (select 1 from public.decks d where d.id = deck_id and d.owner_id = (select auth.uid()))) with check (exists (select 1 from public.decks d where d.id = deck_id and d.owner_id = (select auth.uid())));
 create policy "own mistakes" on public.mistakes for all to authenticated using ((select auth.uid()) = owner_id) with check ((select auth.uid()) = owner_id);
 
--- Phase 1 업데이트: 예문 뜻/동의어, 공유 링크, 오답 복습 주기, 닉네임
+-- ============================================================
+-- Migration 2: 예문 뜻/동의어, 공유 링크, 오답 복습 주기, 닉네임
+-- ============================================================
 alter table public.words add column if not exists example_ko text not null default '';
 alter table public.words add column if not exists synonyms text not null default '';
 alter table public.decks add column if not exists share_token uuid unique;
@@ -48,10 +53,13 @@ create policy "own profile" on public.profiles for all to authenticated using ((
 create policy "read shared deck" on public.decks for select to authenticated using (share_token is not null);
 create policy "read shared deck words" on public.words for select to authenticated using (exists (select 1 from public.decks d where d.id = deck_id and d.share_token is not null));
 
--- Phase 2 업데이트: 중국어 병음
+-- ============================================================
+-- Migration 3: 중국어 병음 + 기본 스페인어 단어장 예문 뜻/동의어 백필
+-- (백필은 이 9개 기본 단어에만 한 번 적용하는 것이라 다시 실행할 일 없음.
+--  새로 만드는 단어의 동의어는 앱의 "다른 표현" 입력란에 직접 쓰면 됨.)
+-- ============================================================
 alter table public.words add column if not exists pinyin text not null default '';
 
--- 이미 만들어진 기본 스페인어 단어장에 예문 뜻/동의어 채우기 (이미 채워져 있으면 덮어쓰지 않음)
 update public.words set example_ko = '안녕! 어떻게 지내?' where front = 'hola' and example_ko = '';
 update public.words set example_ko = '정말 고마워요.', synonyms = '감사합니다' where front = 'gracias' and example_ko = '';
 update public.words set example_ko = '커피 한 잔 부탁해요.', synonyms = '부탁해요' where front = 'por favor' and example_ko = '';
@@ -62,7 +70,9 @@ update public.words set example_ko = '우리 가족은 대가족이에요.' wher
 update public.words set example_ko = '먹고 싶어요.' where front = 'comer' and example_ko = '';
 update public.words set example_ko = '오늘은 월요일이에요.' where front = 'hoy' and example_ko = '';
 
--- Round 3 업데이트: 온보딩(성별/나이대/언어별 레벨·목표)
+-- ============================================================
+-- Migration 4: 온보딩 (성별/나이대/언어별 레벨·목표)
+-- ============================================================
 alter table public.profiles add column if not exists gender text;
 alter table public.profiles add column if not exists age_range text;
 
