@@ -85,7 +85,7 @@ function header() {
 }
 function content() { return `<section class="content">${!configured ? setup() : !state.user ? auth() : state.screen === 'onboarding' ? onboarding() : state.screen === 'home' ? home() : state.screen === 'study' ? study() : state.screen === 'quiz' ? quiz() : state.screen === 'mistakes' ? mistakes() : state.screen === 'ai' ? aiChat() : create()}</section>`; }
 function setup(){return `<div class="empty"><div>⚙</div><h2>서버 연결을 준비해 주세요</h2><p>config.js에 Supabase 주소와 Publishable key를 넣으면 회원가입과 클라우드 저장을 시작할 수 있어요.</p></div>`}
-function auth(){const signup=state.authMode==='signup';return `<div class="auth-card"><div class="auth-mark">L</div><h2>${signup?'회원가입':'로그인'}</h2><p>${signup?'가입하면 단어장이 개인 계정에 안전하게 저장돼요.':'어디서든 내 단어장을 이어서 학습하세요.'}</p><form id="auth-form">${signup?'<label>닉네임<input type="text" name="nickname" required minlength="1" maxlength="30" placeholder="다른 사람에게 보여질 이름" /></label>':''}<label>이메일<input type="email" name="email" required autocomplete="email" placeholder="name@example.com" /></label><label>비밀번호<input type="password" name="password" required minlength="8" autocomplete="${signup?'new-password':'current-password'}" placeholder="8자 이상" /></label>${signup?'<label>비밀번호 확인<input type="password" name="passwordConfirm" required minlength="8" autocomplete="new-password" placeholder="비밀번호를 다시 입력하세요" /></label>':''}<button class="primary" type="submit">${signup?'회원가입':'로그인'}</button></form><button class="auth-switch" data-action="auth-mode">${signup?'이미 계정이 있나요? 로그인':'계정이 없나요? 회원가입'}</button></div>`}
+function auth(){const signup=state.authMode==='signup';return `<div class="auth-card"><div class="auth-mark">L</div><h2>${signup?'회원가입':'로그인'}</h2><p>${signup?'가입하면 단어장이 개인 계정에 안전하게 저장돼요.':'어디서든 내 단어장을 이어서 학습하세요.'}</p><form id="auth-form">${signup?'<label>닉네임<input type="text" name="nickname" required minlength="1" maxlength="30" placeholder="다른 사람에게 보여질 이름" /></label>':''}<label>이메일<input type="email" name="email" required autocomplete="email" placeholder="name@example.com" /></label><label>비밀번호<input type="password" name="password" required minlength="8" autocomplete="${signup?'new-password':'current-password'}" placeholder="8자 이상" /></label>${signup?'<label>비밀번호 확인<input type="password" name="passwordConfirm" required minlength="8" autocomplete="new-password" placeholder="비밀번호를 다시 입력하세요" /></label>':''}<button class="primary" type="submit">${signup?'회원가입':'로그인'}</button></form><button class="auth-switch" data-action="auth-mode">${signup?'이미 계정이 있나요? 로그인':'계정이 없나요? 회원가입'}</button><div class="oauth-row"><span>또는</span><button class="oauth-btn" data-action="oauth-google">Google로 계속하기</button></div></div>`}
 function languagePill(){return `<button class="language-pill" data-action="language">${langFlag(state.language)} ${state.language} ${icon('chev')}</button>`;}
 function langHeroArt(l){ return l==='영어'?'Hello!':l==='중국어'?'你好!':'¡Hola!'; }
 function home() {
@@ -233,6 +233,7 @@ async function action(a, el) {
   else if (a === 'account') state.modal = 'account';
   else if (a === 'close-modal') state.modal = null;
   else if (a === 'auth-mode') state.authMode = state.authMode === 'login' ? 'signup' : 'login';
+  else if (a === 'oauth-google') { await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } }); return; }
   else if (a === 'set-language') {
     const lang = el.dataset.lang;
     state.modal = null;
@@ -528,7 +529,25 @@ async function init() {
     await loadCloudData();
     if (state.pendingShare) await claimSharedDeck(state.pendingShare);
   }
-  supabase.auth.onAuthStateChange((_event, session) => { state.user = session?.user || null; });
+  supabase.auth.onAuthStateChange(async (_event, session) => {
+    const newUser = session?.user || null;
+    if (newUser && newUser.id !== state.user?.id) {
+      state.user = newUser;
+      await loadCloudData();
+      if (!state.nickname) {
+        const nickname = (prompt('닉네임을 입력해 주세요.') || newUser.email.split('@')[0]).trim();
+        state.nickname = nickname;
+        await supabase.from('profiles').upsert({ id: newUser.id, nickname });
+        state.onboard = { step: 0, gender: null, age: null, languages: [], goalIndex: 0, levels: {}, goals: {} };
+        state.screen = 'onboarding';
+      }
+      if (state.pendingShare) await claimSharedDeck(state.pendingShare);
+      render();
+    } else if (!newUser && state.user) {
+      state.user = null;
+      render();
+    }
+  });
   render();
 }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
