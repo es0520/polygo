@@ -58,7 +58,8 @@ const state = {
   revealed: false, shuffle: false,
   quizType: 'choice', quizSource: 'deck', quizIndex: 0, answered: null,
   mistakes: [], dark: localStorage.getItem('lingo-dark') === 'true', modal: null,
-  user: null, authMode: 'login', pendingShare: null
+  user: null, authMode: 'login', pendingShare: null,
+  ocrCandidates: [], ocrBusy: false, aiMessages: [], aiBusy: false
 };
 let decks = [];
 
@@ -78,10 +79,10 @@ function render() {
 function symbols() { return `<svg class="symbols" xmlns="http://www.w3.org/2000/svg"><symbol id="menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol><symbol id="home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V10Z"/><path d="M9 21v-6h6v6"/></symbol><symbol id="book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22V5.5Z"/><path d="M4 18.5A2.5 2.5 0 0 1 6.5 16H20"/></symbol><symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol><symbol id="chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol><symbol id="shuffle" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4M4 7h3c4 0 5 10 10 10h3M20 17l-4 4M4 17h3c1.8 0 3-2 4.2-4"/></symbol><symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol><symbol id="user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 3.5-6 8-6s7.2 2 8 6"/></symbol><symbol id="settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.2 2.2-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-3.2v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-2.2-2.2.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H5v-3.2h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2.2-2.2.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3.5h3.2v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 2.2 2.2-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.2V13h-.2a1.7 1.7 0 0 0-1.5 2Z"/></symbol></svg>`; }
 function header() {
   const name = state.nickname || state.user?.email?.split('@')[0] || '';
-  const title = !state.user ? 'Lingo에 오신 걸 환영해요' : state.screen === 'home' ? `${GREETINGS[state.language]||'안녕'}, ${escape(name)}님` : state.screen === 'study' ? deck().name : state.screen === 'quiz' ? '퀴즈' : state.screen === 'mistakes' ? '오답 노트' : '새 단어장';
+  const title = !state.user ? 'Lingo에 오신 걸 환영해요' : state.screen === 'home' ? `${GREETINGS[state.language]||'안녕'}, ${escape(name)}님` : state.screen === 'study' ? deck().name : state.screen === 'quiz' ? '퀴즈' : state.screen === 'mistakes' ? '오답 노트' : state.screen === 'ai' ? 'AI 튜터' : '새 단어장';
   return `<header><div><p class="eyebrow">${!state.user ? '나만의 언어 학습 공간' : state.screen === 'home' ? '오늘도 한 걸음씩' : state.language}</p><h1>${title}</h1></div>${state.user?`<button class="icon-btn" data-action="drawer">${icon('menu')}</button>`:''}</header>`;
 }
-function content() { return `<section class="content">${!configured ? setup() : !state.user ? auth() : state.screen === 'home' ? home() : state.screen === 'study' ? study() : state.screen === 'quiz' ? quiz() : state.screen === 'mistakes' ? mistakes() : create()}</section>`; }
+function content() { return `<section class="content">${!configured ? setup() : !state.user ? auth() : state.screen === 'home' ? home() : state.screen === 'study' ? study() : state.screen === 'quiz' ? quiz() : state.screen === 'mistakes' ? mistakes() : state.screen === 'ai' ? aiChat() : create()}</section>`; }
 function setup(){return `<div class="empty"><div>⚙</div><h2>서버 연결을 준비해 주세요</h2><p>config.js에 Supabase 주소와 Publishable key를 넣으면 회원가입과 클라우드 저장을 시작할 수 있어요.</p></div>`}
 function auth(){const signup=state.authMode==='signup';return `<div class="auth-card"><div class="auth-mark">L</div><h2>${signup?'회원가입':'로그인'}</h2><p>${signup?'가입하면 단어장이 개인 계정에 안전하게 저장돼요.':'어디서든 내 단어장을 이어서 학습하세요.'}</p><form id="auth-form">${signup?'<label>닉네임<input type="text" name="nickname" required minlength="1" maxlength="30" placeholder="다른 사람에게 보여질 이름" /></label>':''}<label>이메일<input type="email" name="email" required autocomplete="email" placeholder="name@example.com" /></label><label>비밀번호<input type="password" name="password" required minlength="8" autocomplete="${signup?'new-password':'current-password'}" placeholder="8자 이상" /></label>${signup?'<label>비밀번호 확인<input type="password" name="passwordConfirm" required minlength="8" autocomplete="new-password" placeholder="비밀번호를 다시 입력하세요" /></label>':''}<button class="primary" type="submit">${signup?'회원가입':'로그인'}</button></form><button class="auth-switch" data-action="auth-mode">${signup?'이미 계정이 있나요? 로그인':'계정이 없나요? 회원가입'}</button></div>`}
 function languagePill(){return `<button class="language-pill" data-action="language">${langFlag(state.language)} ${state.language} ${icon('chev')}</button>`;}
@@ -160,12 +161,15 @@ function mistakes() {
 }
 function create(){
   const chinese = state.language === '중국어';
-  return `${languagePill()}<div class="create-head"><h2>새 단어장을 만들어 볼까요?</h2><p>직접 입력하거나 사진에서 단어를 찾아볼 수 있어요.</p></div><form id="create-form" class="create-form"><label>단어장 이름<input name="name" required placeholder="예: DELE A1" /></label><label>${chinese?'한자':state.language+' 단어'}<input name="front" required placeholder="${chinese?'예: 你好':'예: aprender'}" /></label>${chinese?'<label>병음<input name="pinyin" required placeholder="예: nǐ hǎo" /></label>':''}<label>한국어 뜻<input name="back" required placeholder="예: 배우다" /></label><label>다른 표현 <small>(선택, 쉼표로 구분)</small><input name="synonyms" placeholder="예: 학습하다" /></label><label>예문 <small>(선택)</small><input name="example" placeholder="예: Quiero aprender español." /></label><label>예문 뜻 <small>(선택)</small><input name="example_ko" placeholder="예: 스페인어를 배우고 싶어요." /></label><button class="primary" type="submit">단어장에 추가하기</button></form><div class="ocr-box"><b>📷 사진에서 단어 추출</b><p>사진 속에서 "단어 - 한국어" 형식의 줄을 읽어 첫 항목을 채웁니다. 내용을 확인한 뒤 저장하세요.</p><input id="image-input" type="file" accept="image/*" /><button class="soft" data-action="ocr">사진에서 읽기</button></div>`;
+  return `${languagePill()}<div class="create-head"><h2>새 단어장을 만들어 볼까요?</h2><p>직접 입력하거나 사진에서 단어를 찾아볼 수 있어요.</p></div><form id="create-form" class="create-form"><label>단어장 이름<input name="name" required placeholder="예: DELE A1" /></label><label>${chinese?'한자':state.language+' 단어'}<input name="front" required placeholder="${chinese?'예: 你好':'예: aprender'}" /></label>${chinese?'<label>병음<input name="pinyin" required placeholder="예: nǐ hǎo" /></label>':''}<label>한국어 뜻<input name="back" required placeholder="예: 배우다" /></label><label>다른 표현 <small>(선택, 쉼표로 구분)</small><input name="synonyms" placeholder="예: 학습하다" /></label><label>예문 <small>(선택)</small><input name="example" placeholder="예: Quiero aprender español." /></label><label>예문 뜻 <small>(선택)</small><input name="example_ko" placeholder="예: 스페인어를 배우고 싶어요." /></label><button class="primary" type="submit">단어장에 추가하기</button></form><div class="ocr-box"><b>📷 사진에서 단어 자동 추출</b><p>사진을 올리면 AI가 ${state.language} 단어와 한국어 뜻을 알아서 찾아드려요.</p><input id="image-input" type="file" accept="image/*" /><button class="soft" data-action="ocr">${state.ocrBusy?'분석 중…':'사진에서 찾기'}</button>${state.ocrCandidates.length?`<div class="ocr-results">${state.ocrCandidates.map((c,i)=>`<div class="ocr-item"><div><b>${escape(c.front)}</b><small>${escape(c.back)}${c.pinyin?' · '+escape(c.pinyin):''}</small></div><button data-action="add-ocr-word" data-index="${i}">추가</button></div>`).join('')}</div>`:''}</div>`;
+}
+function aiChat(){
+  return `${languagePill()}<div class="ai-chat">${state.aiMessages.length?state.aiMessages.map(m=>`<div class="ai-msg ${m.role}">${escape(m.content)}</div>`).join(''):'<p class="hint">문법, 표현, 회화에 대해 무엇이든 물어보세요.</p>'}${state.aiBusy?'<div class="ai-msg assistant">생각 중…</div>':''}</div><form id="ai-form" class="ai-form"><input name="q" autocomplete="off" placeholder="예: gracias랑 muchas gracias 차이가 뭐야?" /><button class="primary" type="submit">보내기</button></form>`;
 }
 function nav(){return state.user?`<nav><button class="${state.screen==='home'?'active':''}" data-screen="home">${icon('home')}<span>홈</span></button><button class="${state.screen==='study'?'active':''}" data-screen="study">${icon('book')}<span>단어장</span></button><button class="${state.screen==='quiz'?'active':''}" data-screen="quiz"><span class="quiz-nav">✎</span><span>퀴즈</span></button><button class="${state.screen==='mistakes'?'active':''}" data-screen="mistakes"><span class="quiz-nav">◉</span><span>오답</span></button></nav>`:'';}
 function drawer(){
   const name = state.nickname || state.user?.email?.split('@')[0] || '';
-  return `<div class="overlay ${state.drawer?'show':''}" data-action="drawer"></div><aside class="drawer ${state.drawer?'show':''}"><div class="brand"><div class="logo">L</div><b>Lingo</b><button data-action="drawer">×</button></div><div class="profile"><span class="avatar">${escape(name.slice(0,1).toUpperCase()||'L')}</span><div><b>${escape(name)}</b><small>클라우드 동기화 사용 중</small></div></div><div class="drawer-links"><button data-action="account">${icon('user')} 회원 정보 ${icon('chev')}</button><button class="disabled">◌ 언어 학습 모드 <small>준비 중</small></button><button data-screen="study">${icon('book')} 단어장 모드 ${icon('chev')}</button><button data-action="settings">${icon('settings')} 설정 ${icon('chev')}</button></div><p>v0.4 · 계정에 안전하게 동기화됨</p></aside>`;
+  return `<div class="overlay ${state.drawer?'show':''}" data-action="drawer"></div><aside class="drawer ${state.drawer?'show':''}"><div class="brand"><div class="logo">L</div><b>Lingo</b><button data-action="drawer">×</button></div><div class="profile"><span class="avatar">${escape(name.slice(0,1).toUpperCase()||'L')}</span><div><b>${escape(name)}</b><small>클라우드 동기화 사용 중</small></div></div><div class="drawer-links"><button data-action="account">${icon('user')} 회원 정보 ${icon('chev')}</button><button data-screen="ai">💬 AI에게 질문하기 ${icon('chev')}</button><button data-screen="study">${icon('book')} 단어장 모드 ${icon('chev')}</button><button data-action="settings">${icon('settings')} 설정 ${icon('chev')}</button></div><p>v0.4 · 계정에 안전하게 동기화됨</p></aside>`;
 }
 function modal(){
   if (!state.modal) return '';
@@ -185,11 +189,13 @@ function bind() {
   const form=$('#create-form'); if(form) form.onsubmit=createDeck;
   const authForm=$('#auth-form'); if(authForm) authForm.onsubmit=authenticate;
   const spell=$('#spell-form'); if(spell) spell.onsubmit=e=>{e.preventDefault();answer(spell.querySelector('input').value.trim())};
+  const aiForm=$('#ai-form'); if(aiForm) aiForm.onsubmit=askAI;
 }
 function goto(screen) {
   state.screen = screen; state.revealed = false; state.drawer = false;
   if (screen === 'study') startRound();
   if (screen === 'quiz') { state.quizSource = 'deck'; state.quizIndex = 0; state.answered = null; }
+  if (screen === 'create') state.ocrCandidates = [];
   render();
 }
 function startRound() {
@@ -233,6 +239,7 @@ async function action(a, el) {
   else if (a === 'share-deck') await shareDeck();
   else if (a === 'voice') { await listenForAnswer(); return; }
   else if (a === 'ocr') { await readImage(); return; }
+  else if (a === 'add-ocr-word') { await addOcrWord(Number(el.dataset.index)); return; }
   else if (a === 'delete-mistake') { await supabase.from('mistakes').delete().eq('owner_id',state.user.id).eq('word_id',el.dataset.word); state.mistakes=state.mistakes.filter(w=>w.id!==el.dataset.word); }
   else if (a === 'review-mistakes') { state.quizSource='mistakes'; state.quizIndex=0; state.answered=null; state.screen='quiz'; state.drawer=false; }
   else if (a === 'quiz-deck-mode') { state.quizSource='deck'; state.quizIndex=0; state.answered=null; }
@@ -373,23 +380,54 @@ async function claimSharedDeck(token) {
   await loadCloudData();
   alert('"' + d.name + '" 단어장을 내 계정에 추가했어요!');
 }
+function fileToBase64(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 async function readImage(){
   const input=$('#image-input');
   if(!input?.files?.[0]) return alert('먼저 사진을 선택해 주세요.');
-  const btn=document.querySelector('[data-action="ocr"]');
-  btn.textContent='읽는 중…';
+  state.ocrBusy = true;
+  render();
   try{
-    const ocrLang = state.language==='영어'?'eng+kor':state.language==='중국어'?'chi_sim+kor':'spa+kor';
-    const {createWorker}=await import('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js');
-    const worker=await createWorker(ocrLang);
-    const {data:{text}}=await worker.recognize(input.files[0]);
-    await worker.terminate();
-    const pair=text.split(/\r?\n/).map(line=>line.split(/\s*[-–—:=]\s*/)).find(x=>x.length===2);
-    if(!pair) return alert('"단어 - 한국어"처럼 두 항목이 한 줄에 있는 사진을 사용해 주세요.');
-    document.querySelector('[name="front"]').value=pair[0].trim();
-    document.querySelector('[name="back"]').value=pair[1].trim();
-  }catch(err){ alert('사진 인식에 실패했어요: '+err.message); }
-  finally{ if(btn) btn.textContent='사진에서 읽기'; }
+    const file = input.files[0];
+    const image = await fileToBase64(file);
+    const { data, error } = await supabase.functions.invoke('extract-words', { body: { image, mimeType: file.type, language: state.language } });
+    if (error) throw new Error(error.message || 'AI 서버 호출에 실패했어요.');
+    if (data?.error) throw new Error(data.error);
+    state.ocrCandidates = data?.words || [];
+    if (!state.ocrCandidates.length) alert('사진에서 단어를 찾지 못했어요. 더 선명한 사진으로 시도해 주세요.');
+  }catch(err){ alert('사진 분석에 실패했어요: '+err.message); }
+  finally{ state.ocrBusy = false; render(); }
+}
+async function addOcrWord(index){
+  const candidate = state.ocrCandidates[index];
+  if (!candidate) return;
+  const d = deck();
+  if (!d.id) return alert('먼저 단어장을 하나 만들어 주세요.');
+  const r = await supabase.from('words').insert({ deck_id: d.id, front: candidate.front, back: candidate.back, example: candidate.example||'', example_ko: candidate.example_ko||'', synonyms: candidate.synonyms||'', pinyin: candidate.pinyin||'' }).select().single();
+  if (r.error) return alert(r.error.message);
+  d.words.push(r.data);
+  state.ocrCandidates = state.ocrCandidates.filter((_, i) => i !== index);
+  render();
+}
+async function askAI(e){
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const q = (f.get('q')||'').trim();
+  if (!q) return;
+  state.aiMessages.push({ role: 'user', content: q });
+  state.aiBusy = true;
+  render();
+  const { data, error } = await supabase.functions.invoke('ask-ai', { body: { messages: state.aiMessages.map(m=>({role:m.role,content:m.content})), language: state.language } });
+  state.aiBusy = false;
+  if (error || data?.error) state.aiMessages.push({ role: 'assistant', content: '죄송해요, 답변을 가져오지 못했어요. 잠시 후 다시 시도해 주세요.' });
+  else state.aiMessages.push({ role: 'assistant', content: data.reply || '' });
+  render();
 }
 let recognizing = false;
 async function listenForAnswer() {
