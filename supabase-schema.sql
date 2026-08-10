@@ -61,3 +61,19 @@ update public.words set example_ko = '그는 내 친구예요.' where front = 'a
 update public.words set example_ko = '우리 가족은 대가족이에요.' where front = 'familia' and example_ko = '';
 update public.words set example_ko = '먹고 싶어요.' where front = 'comer' and example_ko = '';
 update public.words set example_ko = '오늘은 월요일이에요.' where front = 'hoy' and example_ko = '';
+
+-- Round 3 업데이트: 온보딩(성별/나이대/언어별 레벨·목표)
+alter table public.profiles add column if not exists gender text;
+alter table public.profiles add column if not exists age_range text;
+
+create table if not exists public.user_languages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  language text not null,
+  level text,
+  goals text not null default '',
+  created_at timestamptz not null default now(),
+  unique(user_id, language)
+);
+alter table public.user_languages enable row level security;
+create policy "own user_languages" on public.user_languages for all to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);

@@ -59,7 +59,7 @@ const state = {
   quizType: 'choice', quizSource: 'deck', quizIndex: 0, answered: null,
   mistakes: [], dark: localStorage.getItem('lingo-dark') === 'true', modal: null,
   user: null, authMode: 'login', pendingShare: null,
-  ocrCandidates: [], ocrBusy: false, aiMessages: [], aiBusy: false
+  ocrCandidates: [], ocrBusy: false, aiMessages: [], aiBusy: false, onboard: null
 };
 let decks = [];
 
@@ -67,6 +67,7 @@ const $ = (s) => document.querySelector(s);
 const deck = () => decks.find(d => d.id === state.deckId) || decks.find(d => d.language === state.language) || decks[0] || { id: null, name: '', icon: '📚', words: [] };
 const escape = (text) => String(text).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
 const normalise = v => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ\s.,!?¿¡]/g,'');
+const normalisePinyin = v => v.toLowerCase().trim().replace(/\s+/g,' ');
 const shuffleArr = arr => [...arr].sort(() => .5 - Math.random());
 const langFlag = l => l === '영어' ? '🇬🇧' : l === '중국어' ? '🇨🇳' : '🇪🇸';
 function icon(name) { return `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#${name}" /></svg>`; }
@@ -76,13 +77,13 @@ function render() {
   $('#app').innerHTML = `${symbols()}<main class="shell">${header()}${content()}${nav()}</main>${drawer()}${modal()}`;
   bind();
 }
-function symbols() { return `<svg class="symbols" xmlns="http://www.w3.org/2000/svg"><symbol id="menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol><symbol id="home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V10Z"/><path d="M9 21v-6h6v6"/></symbol><symbol id="book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22V5.5Z"/><path d="M4 18.5A2.5 2.5 0 0 1 6.5 16H20"/></symbol><symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol><symbol id="chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol><symbol id="shuffle" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4M4 7h3c4 0 5 10 10 10h3M20 17l-4 4M4 17h3c1.8 0 3-2 4.2-4"/></symbol><symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol><symbol id="user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 3.5-6 8-6s7.2 2 8 6"/></symbol><symbol id="settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.2 2.2-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-3.2v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-2.2-2.2.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H5v-3.2h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2.2-2.2.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3.5h3.2v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 2.2 2.2-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.2V13h-.2a1.7 1.7 0 0 0-1.5 2Z"/></symbol></svg>`; }
+function symbols() { return `<svg class="symbols" xmlns="http://www.w3.org/2000/svg"><symbol id="menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol><symbol id="home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V10Z"/><path d="M9 21v-6h6v6"/></symbol><symbol id="book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22V5.5Z"/><path d="M4 18.5A2.5 2.5 0 0 1 6.5 16H20"/></symbol><symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol><symbol id="chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol><symbol id="shuffle" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4M4 7h3c4 0 5 10 10 10h3M20 17l-4 4M4 17h3c1.8 0 3-2 4.2-4"/></symbol><symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol><symbol id="user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 3.5-6 8-6s7.2 2 8 6"/></symbol><symbol id="settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.2 2.2-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-3.2v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-2.2-2.2.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H5v-3.2h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2.2-2.2.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3.5h3.2v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 2.2 2.2-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.2V13h-.2a1.7 1.7 0 0 0-1.5 2Z"/></symbol><symbol id="quiz" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.5 2.5 0 1 1 3.9 2.4c-.8.5-1.4 1-1.4 2"/><path d="M12 17h.01"/></symbol><symbol id="redo" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 2.6-6.3"/><path d="M3 4v5h5"/></symbol></svg>`; }
 function header() {
   const name = state.nickname || state.user?.email?.split('@')[0] || '';
-  const title = !state.user ? 'Lingo에 오신 걸 환영해요' : state.screen === 'home' ? `${GREETINGS[state.language]||'안녕'}, ${escape(name)}님` : state.screen === 'study' ? deck().name : state.screen === 'quiz' ? '퀴즈' : state.screen === 'mistakes' ? '오답 노트' : state.screen === 'ai' ? 'AI 튜터' : '새 단어장';
-  return `<header><div><p class="eyebrow">${!state.user ? '나만의 언어 학습 공간' : state.screen === 'home' ? '오늘도 한 걸음씩' : state.language}</p><h1>${title}</h1></div>${state.user?`<button class="icon-btn" data-action="drawer">${icon('menu')}</button>`:''}</header>`;
+  const title = !state.user ? 'Lingo에 오신 걸 환영해요' : state.screen === 'onboarding' ? '시작하기' : state.screen === 'home' ? `${GREETINGS[state.language]||'안녕'}, ${escape(name)}님` : state.screen === 'study' ? deck().name : state.screen === 'quiz' ? '퀴즈' : state.screen === 'mistakes' ? '오답 노트' : state.screen === 'ai' ? 'AI 튜터' : '새 단어장';
+  return `<header><div><p class="eyebrow">${!state.user ? '나만의 언어 학습 공간' : state.screen === 'onboarding' ? '거의 다 됐어요' : state.screen === 'home' ? '오늘도 한 걸음씩' : state.language}</p><h1>${title}</h1></div>${state.user && state.screen!=='onboarding'?`<button class="icon-btn" data-action="drawer">${icon('menu')}</button>`:''}</header>`;
 }
-function content() { return `<section class="content">${!configured ? setup() : !state.user ? auth() : state.screen === 'home' ? home() : state.screen === 'study' ? study() : state.screen === 'quiz' ? quiz() : state.screen === 'mistakes' ? mistakes() : state.screen === 'ai' ? aiChat() : create()}</section>`; }
+function content() { return `<section class="content">${!configured ? setup() : !state.user ? auth() : state.screen === 'onboarding' ? onboarding() : state.screen === 'home' ? home() : state.screen === 'study' ? study() : state.screen === 'quiz' ? quiz() : state.screen === 'mistakes' ? mistakes() : state.screen === 'ai' ? aiChat() : create()}</section>`; }
 function setup(){return `<div class="empty"><div>⚙</div><h2>서버 연결을 준비해 주세요</h2><p>config.js에 Supabase 주소와 Publishable key를 넣으면 회원가입과 클라우드 저장을 시작할 수 있어요.</p></div>`}
 function auth(){const signup=state.authMode==='signup';return `<div class="auth-card"><div class="auth-mark">L</div><h2>${signup?'회원가입':'로그인'}</h2><p>${signup?'가입하면 단어장이 개인 계정에 안전하게 저장돼요.':'어디서든 내 단어장을 이어서 학습하세요.'}</p><form id="auth-form">${signup?'<label>닉네임<input type="text" name="nickname" required minlength="1" maxlength="30" placeholder="다른 사람에게 보여질 이름" /></label>':''}<label>이메일<input type="email" name="email" required autocomplete="email" placeholder="name@example.com" /></label><label>비밀번호<input type="password" name="password" required minlength="8" autocomplete="${signup?'new-password':'current-password'}" placeholder="8자 이상" /></label>${signup?'<label>비밀번호 확인<input type="password" name="passwordConfirm" required minlength="8" autocomplete="new-password" placeholder="비밀번호를 다시 입력하세요" /></label>':''}<button class="primary" type="submit">${signup?'회원가입':'로그인'}</button></form><button class="auth-switch" data-action="auth-mode">${signup?'이미 계정이 있나요? 로그인':'계정이 없나요? 회원가입'}</button></div>`}
 function languagePill(){return `<button class="language-pill" data-action="language">${langFlag(state.language)} ${state.language} ${icon('chev')}</button>`;}
@@ -102,9 +103,10 @@ function study() {
   return `${languagePill()}<div class="study-meta"><span>${state.roundIndex + 1} / ${state.round.length}</span><div style="display:flex;gap:6px"><button class="toggle" data-action="share-deck">🔗 공유</button><button class="toggle ${state.shuffle?'on':''}" data-action="shuffle">${icon('shuffle')} 셔플</button></div></div><div class="progress"><i style="width:${((state.roundIndex+1)/state.round.length)*100}%"></i></div><button class="flashcard ${state.revealed?'revealed':''}" data-action="reveal"><span class="card-label">${state.revealed?'뜻':state.language}</span><strong>${state.revealed?word.back:word.front}</strong><em>${state.revealed?(extra||'뜻을 확인했어요'):'카드를 눌러 뜻 확인하기'}</em><small>${state.revealed?'다시 눌러 단어 보기':'탭해서 뒤집기'}</small></button><div class="answer-row"><button class="soft danger" data-action="dontknow">아직 어려워요</button><button class="primary" data-action="know">알겠어요 ${icon('chev')}</button></div><p class="hint">모르는 단어만 모아 다시 보여드려요.</p>`;
 }
 function buildOptions(word, field) {
-  const pool = deck().words.length ? deck().words : quizWords();
+  const pool = decks.filter(d=>d.language===state.language).flatMap(d=>d.words);
+  const source = pool.length ? pool : (deck().words.length ? deck().words : quizWords());
   const correctVal = word[field];
-  const distractors = [...new Set(pool.filter(x=>x[field] && x[field]!==correctVal).map(x=>x[field]))].sort(()=>.5-Math.random()).slice(0,3);
+  const distractors = [...new Set(source.filter(x=>x[field] && x[field]!==correctVal).map(x=>x[field]))].sort(()=>.5-Math.random()).slice(0,3);
   return [correctVal, ...distractors].sort(()=>.5-Math.random());
 }
 function quizWords() {
@@ -149,7 +151,7 @@ function quiz() {
           ? `<div class="choices">${buildOptions(word,cfg.field).map(o=>`<button data-answer="${escape(o)}">${escape(o)}</button>`).join('')}</div>`
           : type === 'voice'
             ? `<button class="voice-btn" data-action="voice">🎙 말하기 시작</button><p id="voice-result" class="hint"></p>`
-            : `<form id="spell-form"><input autocomplete="off" placeholder="${cfg.field==='pinyin'?'병음을 입력하세요':'한국어 뜻을 입력하세요'}" /><button class="primary">확인</button></form>`
+            : `<form id="spell-form"><input autocomplete="off" placeholder="${cfg.field==='pinyin'?'성조까지 정확히 입력 (예: nǐ hǎo)':'한국어 뜻을 입력하세요'}" /><button class="primary">확인</button></form>`
       }</div>`;
   return `${languagePill()}${state.quizSource==='mistakes'?'<p class="intro">오답 복습 퀴즈</p>':''}<div class="quiz-types">${quizTypeTabs().map(([v,label])=>`<button class="${type===v?'active':''}" data-quiz="${v}">${label}</button>`).join('')}</div>${body}`;
 }
@@ -166,7 +168,28 @@ function create(){
 function aiChat(){
   return `${languagePill()}<div class="ai-chat">${state.aiMessages.length?state.aiMessages.map(m=>`<div class="ai-msg ${m.role}">${escape(m.content)}</div>`).join(''):'<p class="hint">문법, 표현, 회화에 대해 무엇이든 물어보세요.</p>'}${state.aiBusy?'<div class="ai-msg assistant">생각 중…</div>':''}</div><form id="ai-form" class="ai-form"><input name="q" autocomplete="off" placeholder="예: gracias랑 muchas gracias 차이가 뭐야?" /><button class="primary" type="submit">보내기</button></form>`;
 }
-function nav(){return state.user?`<nav><button class="${state.screen==='home'?'active':''}" data-screen="home">${icon('home')}<span>홈</span></button><button class="${state.screen==='study'?'active':''}" data-screen="study">${icon('book')}<span>단어장</span></button><button class="${state.screen==='quiz'?'active':''}" data-screen="quiz"><span class="quiz-nav">✎</span><span>퀴즈</span></button><button class="${state.screen==='mistakes'?'active':''}" data-screen="mistakes"><span class="quiz-nav">◉</span><span>오답</span></button></nav>`:'';}
+function onboarding(){
+  const o = state.onboard;
+  if (!o) return '';
+  if (o.step === 0) return onboardChoiceStep('성별을 알려주시겠어요?', '원하지 않으면 건너뛰어도 돼요.', ['여성','남성','기타'], o.gender, 'onboard-gender', false);
+  if (o.step === 1) return onboardChoiceStep('연령대를 알려주시겠어요?', '원하지 않으면 건너뛰어도 돼요.', ['10대','20대','30대','40대','50대 이상'], o.age, 'onboard-age', false);
+  if (o.step === 2) return onboardChoiceStep('배우고 싶은 언어를 골라주세요', '여러 개 선택할 수 있어요.', ['스페인어','영어','중국어'], o.languages, 'onboard-language', true);
+  return onboardGoals();
+}
+function onboardChoiceStep(title, hint, options, selected, action, multi){
+  const isSel = v => multi ? (selected||[]).includes(v) : selected===v;
+  return `<div class="create-head"><h2>${escape(title)}</h2><p>${escape(hint)}</p></div><div class="deck-list">${options.map(v=>`<button class="deck-row ${isSel(v)?'selected':''}" data-action="${action}" data-value="${v}"><span style="flex:1">${escape(v)}</span>${isSel(v)?'<b>✓</b>':''}</button>`).join('')}</div><div class="onboard-actions"><button class="soft" data-action="onboard-skip">건너뛰기</button><button class="primary" data-action="onboard-next">다음 ${icon('chev')}</button></div>`;
+}
+function onboardGoals(){
+  const o = state.onboard;
+  const lang = o.languages[o.goalIndex] || o.languages[0];
+  const level = o.levels[lang];
+  const goals = o.goals[lang] || [];
+  const levelOptions = ['초급','중급','고급'];
+  const goalOptions = ['여행','커리어','취미','친목'];
+  return `<div class="create-head"><h2>${escape(lang)} 학습 정보</h2><p>현재 수준과 목표를 알려주세요. (${o.goalIndex+1}/${o.languages.length})</p></div><div class="section-title"><h2>현재 수준</h2></div><div class="deck-list">${levelOptions.map(v=>`<button class="deck-row ${level===v?'selected':''}" data-action="onboard-level" data-lang="${lang}" data-value="${v}"><span style="flex:1">${escape(v)}</span>${level===v?'<b>✓</b>':''}</button>`).join('')}</div><div class="section-title"><h2>목표 (여러 개 선택 가능)</h2></div><div class="deck-list">${goalOptions.map(v=>`<button class="deck-row ${goals.includes(v)?'selected':''}" data-action="onboard-goal" data-lang="${lang}" data-value="${v}"><span style="flex:1">${escape(v)}</span>${goals.includes(v)?'<b>✓</b>':''}</button>`).join('')}</div><div class="onboard-actions"><button class="primary" data-action="onboard-next">${o.goalIndex+1<o.languages.length?'다음 언어':'완료'} ${icon('chev')}</button></div>`;
+}
+function nav(){return state.user && state.screen!=='onboarding'?`<nav><button class="${state.screen==='home'?'active':''}" data-screen="home">${icon('home')}<span>홈</span></button><button class="${state.screen==='study'?'active':''}" data-screen="study">${icon('book')}<span>단어장</span></button><button class="${state.screen==='quiz'?'active':''}" data-screen="quiz">${icon('quiz')}<span>퀴즈</span></button><button class="${state.screen==='mistakes'?'active':''}" data-screen="mistakes">${icon('redo')}<span>오답</span></button></nav>`:'';}
 function drawer(){
   const name = state.nickname || state.user?.email?.split('@')[0] || '';
   return `<div class="overlay ${state.drawer?'show':''}" data-action="drawer"></div><aside class="drawer ${state.drawer?'show':''}"><div class="brand"><div class="logo">L</div><b>Lingo</b><button data-action="drawer">×</button></div><div class="profile"><span class="avatar">${escape(name.slice(0,1).toUpperCase()||'L')}</span><div><b>${escape(name)}</b><small>클라우드 동기화 사용 중</small></div></div><div class="drawer-links"><button data-action="account">${icon('user')} 회원 정보 ${icon('chev')}</button><button data-screen="ai">💬 AI에게 질문하기 ${icon('chev')}</button><button data-screen="study">${icon('book')} 단어장 모드 ${icon('chev')}</button><button data-action="settings">${icon('settings')} 설정 ${icon('chev')}</button></div><p>v0.4 · 계정에 안전하게 동기화됨</p></aside>`;
@@ -240,6 +263,18 @@ async function action(a, el) {
   else if (a === 'voice') { await listenForAnswer(); return; }
   else if (a === 'ocr') { await readImage(); return; }
   else if (a === 'add-ocr-word') { await addOcrWord(Number(el.dataset.index)); return; }
+  else if (a === 'onboard-gender') state.onboard.gender = el.dataset.value;
+  else if (a === 'onboard-age') state.onboard.age = el.dataset.value;
+  else if (a === 'onboard-language') {
+    const v = el.dataset.value, langs = state.onboard.languages;
+    state.onboard.languages = langs.includes(v) ? langs.filter(x=>x!==v) : [...langs, v];
+  }
+  else if (a === 'onboard-level') state.onboard.levels[el.dataset.lang] = el.dataset.value;
+  else if (a === 'onboard-goal') {
+    const lang = el.dataset.lang, v = el.dataset.value, cur = state.onboard.goals[lang] || [];
+    state.onboard.goals[lang] = cur.includes(v) ? cur.filter(x=>x!==v) : [...cur, v];
+  }
+  else if (a === 'onboard-skip' || a === 'onboard-next') { await advanceOnboarding(); return; }
   else if (a === 'delete-mistake') { await supabase.from('mistakes').delete().eq('owner_id',state.user.id).eq('word_id',el.dataset.word); state.mistakes=state.mistakes.filter(w=>w.id!==el.dataset.word); }
   else if (a === 'review-mistakes') { state.quizSource='mistakes'; state.quizIndex=0; state.answered=null; state.screen='quiz'; state.drawer=false; }
   else if (a === 'quiz-deck-mode') { state.quizSource='deck'; state.quizIndex=0; state.answered=null; }
@@ -272,7 +307,8 @@ async function answer(value) {
   const cfg = quizConfig(state.quizType, word);
   const expected = word[cfg.field];
   const accepted = [expected, ...(cfg.field==='back' ? (word.synonyms||'').split(',').map(s=>s.trim()).filter(Boolean) : [])];
-  const correct = accepted.some(v => v && normalise(v) === normalise(value));
+  const cmp = cfg.field === 'pinyin' ? normalisePinyin : normalise;
+  const correct = accepted.some(v => v && cmp(v) === cmp(value));
   if (correct && state.quizSource === 'mistakes') await resolveMistake(word);
   if (!correct) await recordMistake(word);
   state.answered = { correct, value };
@@ -307,14 +343,43 @@ async function authenticate(e) {
     state.user = result.data.user;
     state.nickname = nickname;
     await supabase.from('profiles').upsert({ id: state.user.id, nickname });
-  } else {
-    const result = await supabase.auth.signInWithPassword({ email, password });
-    if (result.error) return alert(result.error.message);
-    state.user = result.data.user;
+    await loadCloudData();
+    state.onboard = { step: 0, gender: null, age: null, languages: [], goalIndex: 0, levels: {}, goals: {} };
+    state.screen = 'onboarding';
+    render();
+    return;
   }
+  const result = await supabase.auth.signInWithPassword({ email, password });
+  if (result.error) return alert(result.error.message);
+  state.user = result.data.user;
   await loadCloudData();
   if (state.pendingShare) await claimSharedDeck(state.pendingShare);
   render();
+}
+async function advanceOnboarding() {
+  const o = state.onboard;
+  if (o.step < 2) { o.step++; render(); return; }
+  if (o.step === 2) {
+    if (!o.languages.length) o.languages = [state.language];
+    o.step = 3; o.goalIndex = 0; render(); return;
+  }
+  if (o.goalIndex + 1 < o.languages.length) { o.goalIndex++; render(); return; }
+  await finishOnboarding();
+}
+async function finishOnboarding() {
+  const o = state.onboard;
+  await supabase.from('profiles').update({ gender: o.gender, age_range: o.age }).eq('id', state.user.id);
+  for (const lang of o.languages) {
+    await supabase.from('user_languages').upsert({ user_id: state.user.id, language: lang, level: o.levels[lang]||null, goals: (o.goals[lang]||[]).join(',') }, { onConflict: 'user_id,language' });
+  }
+  if (o.languages.length && !o.languages.includes(state.language)) {
+    state.language = o.languages[0];
+    await ensureLanguageSeed(state.language);
+    const langDecks = decks.filter(d=>d.language===state.language);
+    state.deckId = langDecks[0]?.id || null;
+  }
+  state.onboard = null;
+  goto('home');
 }
 async function ensureLanguageSeed(language) {
   if (decks.some(d => d.language === language)) return;
@@ -435,8 +500,10 @@ async function listenForAnswer() {
   const result = $('#voice-result');
   if (!Recognition) { const msg='이 브라우저는 음성 인식을 지원하지 않아요. Safari 최신 버전 또는 Chrome에서 시도해 주세요.'; if(result) result.textContent=msg; else alert(msg); return; }
   if (recognizing) return;
-  try { await navigator.mediaDevices.getUserMedia({ audio: true }); }
-  catch { if(result) result.textContent='마이크 권한이 필요해요. 브라우저 설정에서 허용해 주세요.'; return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => t.stop());
+  } catch { if(result) result.textContent='마이크 권한이 필요해요. 브라우저 설정에서 허용해 주세요.'; return; }
   const r = new Recognition();
   r.lang = state.language==='영어' ? 'en-US' : state.language==='중국어' ? 'zh-CN' : 'es-ES';
   r.interimResults = false;
