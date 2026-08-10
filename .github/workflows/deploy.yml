@@ -1,4 +1,4 @@
-name: Deploy Lingo to GitHub Pages
+name: Deploy PolyGo to GitHub Pages
 
 on:
   push:
