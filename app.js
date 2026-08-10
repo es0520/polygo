@@ -91,7 +91,7 @@ function langHeroArt(l){ return l==='영어'?'Hello!':l==='중국어'?'你好!':
 function home() {
   const langDecks = decks.filter(d=>d.language===state.language);
   const d = deck();
-  return `${languagePill()}<section class="hero"><div><span>LAST STUDIED</span><h2>${escape(d.name||'단어장 없음')}</h2><p>${(d.words||[]).length}개의 단어</p></div><div class="hero-art">${langHeroArt(state.language)}<small>✦</small></div></section><div class="section-title"><h2>내 단어장</h2><button data-screen="create">+ 만들기</button></div><div class="deck-list">${langDecks.map(dk=>`<button class="deck-row" data-deck="${dk.id}"><span class="deck-icon">${dk.icon}</span><span><b>${escape(dk.name)}</b><small>${dk.words.length}개의 단어</small></span>${icon('chev')}</button>`).join('')}</div><div class="section-title"><h2>학습 도구</h2></div><div class="tools"><button data-screen="quiz"><span>✎</span><b>퀴즈 풀기</b><small>기억을 확인해요</small></button><button data-screen="mistakes"><span>◉</span><b>오답 노트</b><small>${state.mistakes.length}개 저장됨</small></button></div>`;
+  return `${languagePill()}<section class="hero"><div><span>LAST STUDIED</span><h2>${escape(d.name||'단어장 없음')}</h2><p>${(d.words||[]).length}개의 단어</p></div><div class="hero-art">${langHeroArt(state.language)}<small>✦</small></div></section><div class="section-title"><h2>내 단어장</h2><button data-screen="create">+ 만들기</button></div><div class="deck-list">${langDecks.map(dk=>`<div class="deck-item"><button class="deck-row" data-deck="${dk.id}"><span class="deck-icon">${dk.icon}</span><span><b>${escape(dk.name)}</b><small>${dk.words.length}개의 단어</small></span>${icon('chev')}</button><button class="deck-row-delete" data-action="delete-deck" data-deck="${dk.id}" data-name="${escape(dk.name)}">🗑</button></div>`).join('')}</div><div class="section-title"><h2>학습 도구</h2></div><div class="tools"><button data-screen="quiz"><span>✎</span><b>퀴즈 풀기</b><small>기억을 확인해요</small></button><button data-screen="mistakes"><span>◉</span><b>오답 노트</b><small>${state.mistakes.length}개 저장됨</small></button></div>`;
 }
 function study() {
   const d = deck();
@@ -262,6 +262,20 @@ async function action(a, el) {
   }
   else if (a === 'restart-round') startRound();
   else if (a === 'share-deck') await shareDeck();
+  else if (a === 'delete-deck') {
+    const deckId = el.dataset.deck, name = el.dataset.name || '이';
+    if (!confirm(`"${name}" 단어장을 삭제하시겠어요? 안에 있는 단어와 오답 기록도 함께 삭제돼요.`)) return;
+    const target = decks.find(d => d.id === deckId);
+    const wordIds = new Set((target?.words||[]).map(w=>w.id));
+    const r = await supabase.from('decks').delete().eq('id', deckId);
+    if (r.error) { alert(r.error.message); return; }
+    decks = decks.filter(d => d.id !== deckId);
+    state.mistakes = state.mistakes.filter(w => !wordIds.has(w.id));
+    if (state.deckId === deckId) {
+      const langDecks = decks.filter(d => d.language === state.language);
+      state.deckId = langDecks[0]?.id || null;
+    }
+  }
   else if (a === 'voice') { await listenForAnswer(); return; }
   else if (a === 'ocr') { await readImage(); return; }
   else if (a === 'add-ocr-word') { await addOcrWord(Number(el.dataset.index)); return; }
