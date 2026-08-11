@@ -635,34 +635,33 @@ async function listenForAnswer() {
   r.onend = () => { recognizing = false; };
   r.start();
 }
+async function handleSignedInUser(newUser) {
+  state.user = newUser;
+  await loadCloudData(false);
+  if (!state.nickname) {
+    const nickname = (prompt('닉네임을 입력해 주세요.') || newUser.email.split('@')[0]).trim();
+    state.nickname = nickname;
+    await supabase.from('profiles').upsert({ id: newUser.id, nickname });
+    state.onboard = { step: 0, gender: null, age: null, languages: [], goalIndex: 0, levels: {}, goals: {} };
+    state.screen = 'onboarding';
+  } else {
+    await ensureLanguageSeed(state.language);
+    const langDecks = decks.filter(d=>d.language===state.language);
+    state.deckId = langDecks[0]?.id || decks[0]?.id || null;
+  }
+  if (state.pendingShare) await claimSharedDeck(state.pendingShare);
+}
 async function init() {
   if (!configured) { render(); return; }
   const params = new URLSearchParams(location.search);
   const shareToken = params.get('share');
   if (shareToken) state.pendingShare = shareToken;
   const { data: { session } } = await supabase.auth.getSession();
-  state.user = session?.user || null;
-  if (state.user) {
-    await loadCloudData();
-    if (state.pendingShare) await claimSharedDeck(state.pendingShare);
-  }
+  if (session?.user) await handleSignedInUser(session.user);
   supabase.auth.onAuthStateChange(async (_event, session) => {
     const newUser = session?.user || null;
     if (newUser && newUser.id !== state.user?.id) {
-      state.user = newUser;
-      await loadCloudData(false);
-      if (!state.nickname) {
-        const nickname = (prompt('닉네임을 입력해 주세요.') || newUser.email.split('@')[0]).trim();
-        state.nickname = nickname;
-        await supabase.from('profiles').upsert({ id: newUser.id, nickname });
-        state.onboard = { step: 0, gender: null, age: null, languages: [], goalIndex: 0, levels: {}, goals: {} };
-        state.screen = 'onboarding';
-      } else {
-        await ensureLanguageSeed(state.language);
-        const langDecks = decks.filter(d=>d.language===state.language);
-        state.deckId = langDecks[0]?.id || decks[0]?.id || null;
-      }
-      if (state.pendingShare) await claimSharedDeck(state.pendingShare);
+      await handleSignedInUser(newUser);
       render();
     } else if (!newUser && state.user) {
       state.user = null;
