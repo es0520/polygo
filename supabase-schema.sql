@@ -87,3 +87,8 @@ create table if not exists public.user_languages (
 );
 alter table public.user_languages enable row level security;
 create policy "own user_languages" on public.user_languages for all to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+
+-- ============================================================
+-- Migration 6: 단어장 학습 종료(완료 처리)
+-- ============================================================
+alter table public.decks add column if not exists completed boolean not null default false;

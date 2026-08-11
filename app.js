@@ -4,62 +4,140 @@ import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js';
 const configured = SUPABASE_URL.startsWith('https://') && !SUPABASE_PUBLISHABLE_KEY.startsWith('YOUR_');
 const supabase = configured ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
 const GREETINGS = { '스페인어': '¡Hola', '영어': 'Hello', '중국어': '你好' };
-const initialDecksByLanguage = {
-  '스페인어': [
-    { name: '여행 스페인어', icon: '✈️', words: [
-      { front: 'hola', back: '안녕', example: '¡Hola! ¿Cómo estás?', example_ko: '안녕! 어떻게 지내?', synonyms: '' },
-      { front: 'gracias', back: '고마워', example: 'Muchas gracias.', example_ko: '정말 고마워요.', synonyms: '감사합니다' },
-      { front: 'por favor', back: '부탁합니다', example: 'Un café, por favor.', example_ko: '커피 한 잔 부탁해요.', synonyms: '부탁해요' },
-      { front: '¿dónde está...?', back: '…은 어디에 있나요?', example: '¿Dónde está el baño?', example_ko: '화장실이 어디에 있나요?', synonyms: '' },
-      { front: 'la cuenta', back: '계산서', example: 'La cuenta, por favor.', example_ko: '계산서 부탁해요.', synonyms: '영수증' }
-    ]},
-    { name: '기초 일상회화', icon: '☀️', words: [
-      { front: 'amigo', back: '친구', example: 'Él es mi amigo.', example_ko: '그는 내 친구예요.', synonyms: '' },
-      { front: 'familia', back: '가족', example: 'Mi familia es grande.', example_ko: '우리 가족은 대가족이에요.', synonyms: '' },
-      { front: 'comer', back: '먹다', example: 'Quiero comer.', example_ko: '먹고 싶어요.', synonyms: '' },
-      { front: 'hoy', back: '오늘', example: 'Hoy es lunes.', example_ko: '오늘은 월요일이에요.', synonyms: '' }
-    ]}
-  ],
-  '영어': [
-    { name: '여행 영어', icon: '✈️', words: [
-      { front: 'hello', back: '안녕', example: 'Hello! How are you?', example_ko: '안녕! 어떻게 지내?', synonyms: '하이' },
-      { front: 'thank you', back: '고마워', example: 'Thank you so much.', example_ko: '정말 고마워요.', synonyms: '감사합니다' },
-      { front: 'please', back: '부탁합니다', example: 'A coffee, please.', example_ko: '커피 한 잔 부탁해요.', synonyms: '부탁해요' },
-      { front: 'where is...?', back: '…은 어디에 있나요?', example: 'Where is the bathroom?', example_ko: '화장실이 어디에 있나요?', synonyms: '' },
-      { front: 'the bill', back: '계산서', example: 'The bill, please.', example_ko: '계산서 부탁해요.', synonyms: '영수증' }
-    ]},
-    { name: '기초 일상회화', icon: '☀️', words: [
-      { front: 'friend', back: '친구', example: 'He is my friend.', example_ko: '그는 내 친구예요.', synonyms: '' },
-      { front: 'family', back: '가족', example: 'My family is big.', example_ko: '우리 가족은 대가족이에요.', synonyms: '' },
-      { front: 'eat', back: '먹다', example: 'I want to eat.', example_ko: '먹고 싶어요.', synonyms: '' },
-      { front: 'today', back: '오늘', example: 'Today is Monday.', example_ko: '오늘은 월요일이에요.', synonyms: '' }
-    ]}
-  ],
-  '중국어': [
-    { name: '여행 중국어', icon: '✈️', words: [
-      { front: '你好', pinyin: 'nǐ hǎo', back: '안녕', example: '你好！你好吗？', example_ko: '안녕! 어떻게 지내?', synonyms: '' },
-      { front: '谢谢', pinyin: 'xiè xiè', back: '고마워', example: '非常谢谢。', example_ko: '정말 고마워요.', synonyms: '감사합니다' },
-      { front: '请', pinyin: 'qǐng', back: '부탁합니다', example: '请给我一杯咖啡。', example_ko: '커피 한 잔 부탁해요.', synonyms: '부탁해요' },
-      { front: '在哪里', pinyin: 'zài nǎ lǐ', back: '어디에 있나요', example: '洗手间在哪里？', example_ko: '화장실이 어디에 있나요?', synonyms: '' },
-      { front: '账单', pinyin: 'zhàng dān', back: '계산서', example: '请给我账单。', example_ko: '계산서 부탁해요.', synonyms: '영수증' }
-    ]},
-    { name: '기초 일상회화', icon: '☀️', words: [
-      { front: '朋友', pinyin: 'péng yǒu', back: '친구', example: '他是我的朋友。', example_ko: '그는 내 친구예요.', synonyms: '' },
-      { front: '家人', pinyin: 'jiā rén', back: '가족', example: '我的家人很多。', example_ko: '우리 가족은 대가족이에요.', synonyms: '' },
-      { front: '吃', pinyin: 'chī', back: '먹다', example: '我想吃。', example_ko: '먹고 싶어요.', synonyms: '' },
-      { front: '今天', pinyin: 'jīn tiān', back: '오늘', example: '今天是星期一。', example_ko: '오늘은 월요일이에요.', synonyms: '' }
-    ]}
-  ]
+const initialDecksByLevel = {
+  '스페인어': {
+    '초급': [
+      { name: '여행 스페인어', icon: '✈️', words: [
+        { front: 'hola', back: '안녕', example: '¡Hola! ¿Cómo estás?', example_ko: '안녕! 어떻게 지내?', synonyms: '' },
+        { front: 'gracias', back: '고마워', example: 'Muchas gracias.', example_ko: '정말 고마워요.', synonyms: '감사합니다' },
+        { front: 'por favor', back: '부탁합니다', example: 'Un café, por favor.', example_ko: '커피 한 잔 부탁해요.', synonyms: '부탁해요' },
+        { front: '¿dónde está...?', back: '…은 어디에 있나요?', example: '¿Dónde está el baño?', example_ko: '화장실이 어디에 있나요?', synonyms: '' },
+        { front: 'la cuenta', back: '계산서', example: 'La cuenta, por favor.', example_ko: '계산서 부탁해요.', synonyms: '영수증' }
+      ]},
+      { name: '기초 일상회화', icon: '☀️', words: [
+        { front: 'amigo', back: '친구', example: 'Él es mi amigo.', example_ko: '그는 내 친구예요.', synonyms: '' },
+        { front: 'familia', back: '가족', example: 'Mi familia es grande.', example_ko: '우리 가족은 대가족이에요.', synonyms: '' },
+        { front: 'comer', back: '먹다', example: 'Quiero comer.', example_ko: '먹고 싶어요.', synonyms: '' },
+        { front: 'hoy', back: '오늘', example: 'Hoy es lunes.', example_ko: '오늘은 월요일이에요.', synonyms: '' }
+      ]}
+    ],
+    '중급': [
+      { name: '중급 스페인어', icon: '📘', words: [
+        { front: 'aunque', back: '비록 ~이지만', example: 'Aunque llueve, salgo.', example_ko: '비가 오지만 나가요.', synonyms: '' },
+        { front: 'sin embargo', back: '그러나, 하지만', example: 'Es caro, sin embargo lo compro.', example_ko: '비싸지만 그래도 살 거예요.', synonyms: '' },
+        { front: 'trabajo', back: '일, 직장', example: 'Voy al trabajo.', example_ko: '저는 직장에 가요.', synonyms: '' },
+        { front: 'reunión', back: '회의', example: 'Tengo una reunión.', example_ko: '저는 회의가 있어요.', synonyms: '' },
+        { front: 'aprender', back: '배우다', example: 'Quiero aprender español.', example_ko: '스페인어를 배우고 싶어요.', synonyms: '' },
+        { front: 'mejorar', back: '향상시키다', example: 'Quiero mejorar mi español.', example_ko: '스페인어 실력을 늘리고 싶어요.', synonyms: '' },
+        { front: 'experiencia', back: '경험', example: 'Tengo poca experiencia.', example_ko: '저는 경험이 적어요.', synonyms: '' },
+        { front: 'decidir', back: '결정하다', example: 'No puedo decidir.', example_ko: '결정을 못 하겠어요.', synonyms: '' }
+      ]}
+    ],
+    '고급': [
+      { name: '고급 스페인어', icon: '📕', words: [
+        { front: 'sin duda', back: '의심의 여지 없이', example: 'Sin duda, es la mejor opción.', example_ko: '의심의 여지 없이 최선의 선택이에요.', synonyms: '' },
+        { front: 'a pesar de', back: '~에도 불구하고', example: 'A pesar de todo, sigo adelante.', example_ko: '그럼에도 불구하고 계속 나아가요.', synonyms: '' },
+        { front: 'lograr', back: '성취하다, 이루다', example: 'Logré mi objetivo.', example_ko: '목표를 이뤘어요.', synonyms: '' },
+        { front: 'desarrollo', back: '발전, 개발', example: 'Es importante para el desarrollo.', example_ko: '발전에 중요해요.', synonyms: '' },
+        { front: 'sostenible', back: '지속 가능한', example: 'Necesitamos un futuro sostenible.', example_ko: '지속 가능한 미래가 필요해요.', synonyms: '' },
+        { front: 'responsabilidad', back: '책임', example: 'Es mi responsabilidad.', example_ko: '그건 제 책임이에요.', synonyms: '' },
+        { front: 'perspectiva', back: '관점', example: 'Tiene una perspectiva diferente.', example_ko: '다른 관점을 가지고 있어요.', synonyms: '' },
+        { front: 'polémico', back: '논란이 되는', example: 'Es un tema polémico.', example_ko: '논란이 되는 주제예요.', synonyms: '' }
+      ]}
+    ]
+  },
+  '영어': {
+    '초급': [
+      { name: '여행 영어', icon: '✈️', words: [
+        { front: 'hello', back: '안녕', example: 'Hello! How are you?', example_ko: '안녕! 어떻게 지내?', synonyms: '하이' },
+        { front: 'thank you', back: '고마워', example: 'Thank you so much.', example_ko: '정말 고마워요.', synonyms: '감사합니다' },
+        { front: 'please', back: '부탁합니다', example: 'A coffee, please.', example_ko: '커피 한 잔 부탁해요.', synonyms: '부탁해요' },
+        { front: 'where is...?', back: '…은 어디에 있나요?', example: 'Where is the bathroom?', example_ko: '화장실이 어디에 있나요?', synonyms: '' },
+        { front: 'the bill', back: '계산서', example: 'The bill, please.', example_ko: '계산서 부탁해요.', synonyms: '영수증' }
+      ]},
+      { name: '기초 일상회화', icon: '☀️', words: [
+        { front: 'friend', back: '친구', example: 'He is my friend.', example_ko: '그는 내 친구예요.', synonyms: '' },
+        { front: 'family', back: '가족', example: 'My family is big.', example_ko: '우리 가족은 대가족이에요.', synonyms: '' },
+        { front: 'eat', back: '먹다', example: 'I want to eat.', example_ko: '먹고 싶어요.', synonyms: '' },
+        { front: 'today', back: '오늘', example: 'Today is Monday.', example_ko: '오늘은 월요일이에요.', synonyms: '' }
+      ]}
+    ],
+    '중급': [
+      { name: '중급 영어', icon: '📘', words: [
+        { front: 'however', back: '그러나', example: 'It is expensive, however I need it.', example_ko: '비싸지만 그래도 필요해요.', synonyms: '' },
+        { front: 'although', back: '비록 ~이지만', example: 'Although it rains, I go out.', example_ko: '비가 오지만 나가요.', synonyms: '' },
+        { front: 'opinion', back: '의견', example: 'What is your opinion?', example_ko: '너의 의견은 뭐야?', synonyms: '' },
+        { front: 'improve', back: '향상시키다', example: 'I want to improve my English.', example_ko: '영어 실력을 늘리고 싶어요.', synonyms: '' },
+        { front: 'experience', back: '경험', example: 'I have little experience.', example_ko: '저는 경험이 적어요.', synonyms: '' },
+        { front: 'meeting', back: '회의', example: 'I have a meeting.', example_ko: '저는 회의가 있어요.', synonyms: '' },
+        { front: 'decide', back: '결정하다', example: 'I cannot decide.', example_ko: '결정을 못 하겠어요.', synonyms: '' },
+        { front: 'achieve', back: '성취하다', example: 'I achieved my goal.', example_ko: '목표를 이뤘어요.', synonyms: '' }
+      ]}
+    ],
+    '고급': [
+      { name: '고급 영어', icon: '📕', words: [
+        { front: 'nevertheless', back: '그럼에도 불구하고', example: 'Nevertheless, I kept going.', example_ko: '그럼에도 불구하고 계속 나아갔어요.', synonyms: '' },
+        { front: 'consequently', back: '결과적으로', example: 'Consequently, we changed the plan.', example_ko: '결과적으로 계획을 바꿨어요.', synonyms: '' },
+        { front: 'sustainable', back: '지속 가능한', example: 'We need a sustainable future.', example_ko: '지속 가능한 미래가 필요해요.', synonyms: '' },
+        { front: 'perspective', back: '관점', example: 'She has a different perspective.', example_ko: '그녀는 다른 관점을 가지고 있어요.', synonyms: '' },
+        { front: 'controversial', back: '논란이 되는', example: 'It is a controversial topic.', example_ko: '논란이 되는 주제예요.', synonyms: '' },
+        { front: 'significant', back: '중요한, 상당한', example: 'It is a significant change.', example_ko: '상당한 변화예요.', synonyms: '' },
+        { front: 'ambiguous', back: '모호한', example: 'The answer is ambiguous.', example_ko: '답이 모호해요.', synonyms: '' },
+        { front: 'responsibility', back: '책임', example: 'It is my responsibility.', example_ko: '그건 제 책임이에요.', synonyms: '' }
+      ]}
+    ]
+  },
+  '중국어': {
+    '초급': [
+      { name: '여행 중국어', icon: '✈️', words: [
+        { front: '你好', pinyin: 'nǐ hǎo', back: '안녕', example: '你好！你好吗？', example_ko: '안녕! 어떻게 지내?', synonyms: '' },
+        { front: '谢谢', pinyin: 'xiè xiè', back: '고마워', example: '非常谢谢。', example_ko: '정말 고마워요.', synonyms: '감사합니다' },
+        { front: '请', pinyin: 'qǐng', back: '부탁합니다', example: '请给我一杯咖啡。', example_ko: '커피 한 잔 부탁해요.', synonyms: '부탁해요' },
+        { front: '在哪里', pinyin: 'zài nǎ lǐ', back: '어디에 있나요', example: '洗手间在哪里？', example_ko: '화장실이 어디에 있나요?', synonyms: '' },
+        { front: '账单', pinyin: 'zhàng dān', back: '계산서', example: '请给我账单。', example_ko: '계산서 부탁해요.', synonyms: '영수증' }
+      ]},
+      { name: '기초 일상회화', icon: '☀️', words: [
+        { front: '朋友', pinyin: 'péng yǒu', back: '친구', example: '他是我的朋友。', example_ko: '그는 내 친구예요.', synonyms: '' },
+        { front: '家人', pinyin: 'jiā rén', back: '가족', example: '我的家人很多。', example_ko: '우리 가족은 대가족이에요.', synonyms: '' },
+        { front: '吃', pinyin: 'chī', back: '먹다', example: '我想吃。', example_ko: '먹고 싶어요.', synonyms: '' },
+        { front: '今天', pinyin: 'jīn tiān', back: '오늘', example: '今天是星期一。', example_ko: '오늘은 월요일이에요.', synonyms: '' }
+      ]}
+    ],
+    '중급': [
+      { name: '중급 중국어', icon: '📘', words: [
+        { front: '虽然', pinyin: 'suīrán', back: '비록 ~이지만', example: '虽然下雨，但是我出门。', example_ko: '비가 오지만 나가요.', synonyms: '' },
+        { front: '但是', pinyin: 'dànshì', back: '그러나, 하지만', example: '很贵，但是我要买。', example_ko: '비싸지만 살 거예요.', synonyms: '' },
+        { front: '经验', pinyin: 'jīngyàn', back: '경험', example: '我的经验不多。', example_ko: '저는 경험이 적어요.', synonyms: '' },
+        { front: '提高', pinyin: 'tígāo', back: '향상시키다', example: '我想提高中文水平。', example_ko: '중국어 실력을 늘리고 싶어요.', synonyms: '' },
+        { front: '会议', pinyin: 'huìyì', back: '회의', example: '我有一个会议。', example_ko: '저는 회의가 있어요.', synonyms: '' },
+        { front: '决定', pinyin: 'juédìng', back: '결정하다', example: '我决定不了。', example_ko: '결정을 못 하겠어요.', synonyms: '' },
+        { front: '意见', pinyin: 'yìjiàn', back: '의견', example: '你的意见是什么？', example_ko: '너의 의견은 뭐야?', synonyms: '' },
+        { front: '机会', pinyin: 'jīhuì', back: '기회', example: '这是一个好机会。', example_ko: '이건 좋은 기회예요.', synonyms: '' }
+      ]}
+    ],
+    '고급': [
+      { name: '고급 중국어', icon: '📕', words: [
+        { front: '尽管', pinyin: 'jǐnguǎn', back: '비록 ~일지라도', example: '尽管很难，我还是坚持。', example_ko: '어렵지만 저는 계속해요.', synonyms: '' },
+        { front: '然而', pinyin: "rán'ér", back: '그러나', example: '然而，结果不一样。', example_ko: '그러나 결과는 달랐어요.', synonyms: '' },
+        { front: '可持续', pinyin: 'kěchíxù', back: '지속 가능한', example: '我们需要可持续的未来。', example_ko: '지속 가능한 미래가 필요해요.', synonyms: '' },
+        { front: '责任', pinyin: 'zérèn', back: '책임', example: '这是我的责任。', example_ko: '그건 제 책임이에요.', synonyms: '' },
+        { front: '观点', pinyin: 'guāndiǎn', back: '관점', example: '她有不同的观点。', example_ko: '그녀는 다른 관점을 가지고 있어요.', synonyms: '' },
+        { front: '显著', pinyin: 'xiǎnzhù', back: '현저한, 상당한', example: '这是显著的变化。', example_ko: '상당한 변화예요.', synonyms: '' },
+        { front: '模糊', pinyin: 'móhu', back: '모호한', example: '答案很模糊。', example_ko: '답이 모호해요.', synonyms: '' },
+        { front: '争议', pinyin: 'zhēngyì', back: '논쟁, 논란', example: '这是一个有争议的话题。', example_ko: '논란이 되는 주제예요.', synonyms: '' }
+      ]}
+    ]
+  }
 };
 
 const state = {
   screen: 'home', drawer: false, language: '스페인어', deckId: null, nickname: '',
-  round: [], roundIndex: 0, unknownIds: [], studyDone: false,
+  round: [], roundIndex: 0, roundDeckId: null, unknownIds: [], studyDone: false,
   revealed: false, shuffle: false,
   quizType: 'choice', quizSource: 'deck', quizIndex: 0, answered: null,
   mistakes: [], dark: localStorage.getItem('lingo-dark') === 'true', modal: null,
   user: null, authMode: 'login', pendingShare: null,
-  ocrCandidates: [], ocrBusy: false, aiMessages: [], aiBusy: false, onboard: null
+  ocrCandidates: [], ocrBusy: false, aiMessages: [], aiBusy: false, onboard: null, userLevels: {}
 };
 let decks = [];
 
@@ -80,27 +158,35 @@ function render() {
 function symbols() { return `<svg class="symbols" xmlns="http://www.w3.org/2000/svg"><symbol id="menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol><symbol id="home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V10Z"/><path d="M9 21v-6h6v6"/></symbol><symbol id="book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22V5.5Z"/><path d="M4 18.5A2.5 2.5 0 0 1 6.5 16H20"/></symbol><symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol><symbol id="chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol><symbol id="shuffle" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4M4 7h3c4 0 5 10 10 10h3M20 17l-4 4M4 17h3c1.8 0 3-2 4.2-4"/></symbol><symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol><symbol id="user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 3.5-6 8-6s7.2 2 8 6"/></symbol><symbol id="settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.2 2.2-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-3.2v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-2.2-2.2.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H5v-3.2h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2.2-2.2.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3.5h3.2v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 2.2 2.2-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.2V13h-.2a1.7 1.7 0 0 0-1.5 2Z"/></symbol><symbol id="quiz" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.5 2.5 0 1 1 3.9 2.4c-.8.5-1.4 1-1.4 2"/><path d="M12 17h.01"/></symbol><symbol id="redo" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 2.6-6.3"/><path d="M3 4v5h5"/></symbol></svg>`; }
 function header() {
   const name = state.nickname || state.user?.email?.split('@')[0] || '';
-  const title = !state.user ? 'PolyGo에 오신 걸 환영해요' : state.screen === 'onboarding' ? '시작하기' : state.screen === 'home' ? `${GREETINGS[state.language]||'안녕'}, ${escape(name)}님` : state.screen === 'study' ? deck().name : state.screen === 'quiz' ? '퀴즈' : state.screen === 'mistakes' ? '오답 노트' : state.screen === 'ai' ? 'AI 튜터' : '새 단어장';
+  const title = !state.user ? 'PolyGo에 오신 걸 환영해요' : state.screen === 'onboarding' ? '시작하기' : state.screen === 'home' ? `${GREETINGS[state.language]||'안녕'}, ${escape(name)}님` : state.screen === 'study' ? deck().name : state.screen === 'quiz' ? '퀴즈' : state.screen === 'mistakes' ? '오답 노트' : state.screen === 'ai' ? 'AI 튜터' : state.screen === 'completed' ? '완료한 단어장' : '새 단어장';
   return `<header><div><p class="eyebrow">${!state.user ? '나만의 언어 학습 공간' : state.screen === 'onboarding' ? '거의 다 됐어요' : state.screen === 'home' ? '오늘도 한 걸음씩' : state.language}</p><h1>${title}</h1></div>${state.user && state.screen!=='onboarding'?`<button class="icon-btn" data-action="drawer">${icon('menu')}</button>`:''}</header>`;
 }
-function content() { return `<section class="content">${!configured ? setup() : !state.user ? auth() : state.screen === 'onboarding' ? onboarding() : state.screen === 'home' ? home() : state.screen === 'study' ? study() : state.screen === 'quiz' ? quiz() : state.screen === 'mistakes' ? mistakes() : state.screen === 'ai' ? aiChat() : create()}</section>`; }
+function content() { return `<section class="content">${!configured ? setup() : !state.user ? auth() : state.screen === 'onboarding' ? onboarding() : state.screen === 'home' ? home() : state.screen === 'study' ? study() : state.screen === 'quiz' ? quiz() : state.screen === 'mistakes' ? mistakes() : state.screen === 'ai' ? aiChat() : state.screen === 'completed' ? completedDecksScreen() : create()}</section>`; }
 function setup(){return `<div class="empty"><div>⚙</div><h2>서버 연결을 준비해 주세요</h2><p>config.js에 Supabase 주소와 Publishable key를 넣으면 회원가입과 클라우드 저장을 시작할 수 있어요.</p></div>`}
 function auth(){const signup=state.authMode==='signup';return `<div class="auth-card"><div class="auth-mark">P</div><h2>${signup?'회원가입':'로그인'}</h2><p>${signup?'가입하면 단어장이 개인 계정에 안전하게 저장돼요.':'어디서든 내 단어장을 이어서 학습하세요.'}</p><form id="auth-form">${signup?'<label>닉네임<input type="text" name="nickname" required minlength="1" maxlength="30" placeholder="다른 사람에게 보여질 이름" /></label>':''}<label>이메일<input type="email" name="email" required autocomplete="email" placeholder="name@example.com" /></label><label>비밀번호<input type="password" name="password" required minlength="8" autocomplete="${signup?'new-password':'current-password'}" placeholder="8자 이상" /></label>${signup?'<label>비밀번호 확인<input type="password" name="passwordConfirm" required minlength="8" autocomplete="new-password" placeholder="비밀번호를 다시 입력하세요" /></label>':''}<button class="primary" type="submit">${signup?'회원가입':'로그인'}</button></form><button class="auth-switch" data-action="auth-mode">${signup?'이미 계정이 있나요? 로그인':'계정이 없나요? 회원가입'}</button><div class="oauth-row"><span>또는</span><button class="oauth-btn" data-action="oauth-google">Google로 계속하기</button><button class="oauth-btn" data-action="oauth-kakao">Kakao로 계속하기</button></div></div>`}
 function languagePill(){return `<button class="language-pill" data-action="language">${langFlag(state.language)} ${state.language} ${icon('chev')}</button>`;}
 function langHeroArt(l){ return l==='영어'?'Hello!':l==='중국어'?'你好!':'¡Hola!'; }
 function home() {
-  const langDecks = decks.filter(d=>d.language===state.language);
+  const allLangDecks = decks.filter(d=>d.language===state.language);
+  const langDecks = allLangDecks.filter(d=>!d.completed);
+  const doneCount = allLangDecks.length - langDecks.length;
   const d = deck();
-  return `${languagePill()}<section class="hero"><div><span>LAST STUDIED</span><h2>${escape(d.name||'단어장 없음')}</h2><p>${(d.words||[]).length}개의 단어</p></div><div class="hero-art">${langHeroArt(state.language)}<small>✦</small></div></section><div class="section-title"><h2>내 단어장</h2><button data-screen="create">+ 만들기</button></div><div class="deck-list">${langDecks.map(dk=>`<div class="deck-item"><button class="deck-row" data-deck="${dk.id}"><span class="deck-icon">${dk.icon}</span><span><b>${escape(dk.name)}</b><small>${dk.words.length}개의 단어</small></span>${icon('chev')}</button><button class="deck-row-delete" data-action="delete-deck" data-deck="${dk.id}" data-name="${escape(dk.name)}">🗑</button></div>`).join('')}</div><div class="section-title"><h2>학습 도구</h2></div><div class="tools"><button data-screen="quiz"><span>✎</span><b>퀴즈 풀기</b><small>기억을 확인해요</small></button><button data-screen="mistakes"><span>◉</span><b>오답 노트</b><small>${state.mistakes.length}개 저장됨</small></button></div>`;
+  return `${languagePill()}<section class="hero"><div><span>LAST STUDIED</span><h2>${escape(d.name||'단어장 없음')}</h2><p>${(d.words||[]).length}개의 단어</p></div><div class="hero-art">${langHeroArt(state.language)}<small>✦</small></div></section><div class="section-title"><h2>내 단어장</h2><button data-screen="create">+ 만들기</button></div><div class="deck-list">${langDecks.map(dk=>`<div class="deck-item"><button class="deck-row" data-deck="${dk.id}"><span class="deck-icon">${dk.icon}</span><span><b>${escape(dk.name)}</b><small>${dk.words.length}개의 단어</small></span>${icon('chev')}</button><button class="deck-row-delete" data-action="delete-deck" data-deck="${dk.id}" data-name="${escape(dk.name)}">🗑</button></div>`).join('')}</div>${doneCount?`<button class="link-more" data-screen="completed">✓ 완료한 단어장 (${doneCount}개) 보기</button>`:''}<div class="section-title"><h2>학습 도구</h2></div><div class="tools"><button data-screen="quiz"><span>✎</span><b>퀴즈 풀기</b><small>기억을 확인해요</small></button><button data-screen="mistakes"><span>◉</span><b>오답 노트</b><small>${state.mistakes.length}개 저장됨</small></button></div>`;
+}
+function completedDecksScreen() {
+  const doneDecks = decks.filter(d=>d.language===state.language && d.completed);
+  if (!doneDecks.length) return `${languagePill()}<div class="empty"><div>✓</div><h2>완료한 단어장이 없어요</h2><p>학습을 마친 단어장에서 "학습 종료"를 누르면 여기에 모여요.</p></div>`;
+  return `${languagePill()}<p class="intro">학습을 마친 단어장이에요. 눌러서 다시 볼 수 있어요.</p><div class="deck-list">${doneDecks.map(dk=>`<button class="deck-row" data-deck="${dk.id}"><span class="deck-icon">${dk.icon}</span><span><b>${escape(dk.name)}</b><small>${dk.words.length}개의 단어</small></span>${icon('chev')}</button>`).join('')}</div>`;
 }
 function study() {
   const d = deck();
   if (!d.words.length) return `${languagePill()}<div class="empty"><div>＋</div><h2>아직 단어가 없어요</h2><p>단어장에 첫 단어를 추가해 보세요.</p><button class="primary" data-screen="create">단어 추가하기</button></div>`;
   if (!state.round.length && !state.studyDone) startRound();
-  if (state.studyDone) return `${languagePill()}<div class="empty"><div>✓</div><h2>단어장을 다 외웠어요!</h2><p>${escape(d.name)} 학습을 완료했어요.</p><button class="primary" data-action="restart-round">다시 학습하기</button></div>`;
+  const completeBtn = `<button class="toggle" data-action="complete-deck" data-deck="${d.id}" data-name="${escape(d.name)}">✓ 학습 종료</button>`;
+  if (state.studyDone) return `${languagePill()}<div class="empty"><div>✓</div><h2>단어장을 다 외웠어요!</h2><p>${escape(d.name)} 학습을 완료했어요.</p><button class="primary" data-action="restart-round">다시 학습하기</button><div style="margin-top:10px">${completeBtn}</div></div>`;
   const word = state.round[state.roundIndex];
   const extra = [word.pinyin, word.example, word.example_ko].filter(Boolean).join(' · ');
-  return `${languagePill()}<div class="study-meta"><span>${state.roundIndex + 1} / ${state.round.length}</span><div style="display:flex;gap:6px"><button class="toggle" data-action="share-deck">🔗 공유</button><button class="toggle ${state.shuffle?'on':''}" data-action="shuffle">${icon('shuffle')} 셔플</button></div></div><div class="progress"><i style="width:${((state.roundIndex+1)/state.round.length)*100}%"></i></div><button class="flashcard ${state.revealed?'revealed':''}" data-action="reveal"><span class="card-label">${state.revealed?'뜻':state.language}</span><strong>${state.revealed?word.back:word.front}</strong><em>${state.revealed?(extra||'뜻을 확인했어요'):'카드를 눌러 뜻 확인하기'}</em><small>${state.revealed?'다시 눌러 단어 보기':'탭해서 뒤집기'}</small></button><div class="answer-row"><button class="soft danger" data-action="dontknow">아직 어려워요</button><button class="primary" data-action="know">알겠어요 ${icon('chev')}</button></div><p class="hint">모르는 단어만 모아 다시 보여드려요.</p>`;
+  return `${languagePill()}<div class="study-meta"><span>${state.roundIndex + 1} / ${state.round.length}</span><div style="display:flex;gap:6px">${completeBtn}<button class="toggle" data-action="share-deck">🔗 공유</button><button class="toggle ${state.shuffle?'on':''}" data-action="shuffle">${icon('shuffle')} 셔플</button></div></div><div class="progress"><i style="width:${((state.roundIndex+1)/state.round.length)*100}%"></i></div><button class="flashcard ${state.revealed?'revealed':''}" data-action="reveal"><span class="card-label">${state.revealed?'뜻':state.language}</span><strong>${state.revealed?word.back:word.front}</strong><em>${state.revealed?(extra||'뜻을 확인했어요'):'카드를 눌러 뜻 확인하기'}</em><small>${state.revealed?'다시 눌러 단어 보기':'탭해서 뒤집기'}</small></button><div class="answer-row"><button class="soft danger" data-action="dontknow">아직 어려워요</button><button class="primary" data-action="know">알겠어요 ${icon('chev')}</button></div><p class="hint">모르는 단어만 모아 다시 보여드려요.</p>`;
 }
 function buildOptions(word, field) {
   const pool = decks.filter(d=>d.language===state.language).flatMap(d=>d.words);
@@ -216,7 +302,7 @@ function bind() {
 }
 function goto(screen) {
   state.screen = screen; state.revealed = false; state.drawer = false;
-  if (screen === 'study') startRound();
+  if (screen === 'study' && state.roundDeckId !== state.deckId) startRound();
   if (screen === 'quiz') { state.quizSource = 'deck'; state.quizIndex = 0; state.answered = null; }
   if (screen === 'create') state.ocrCandidates = [];
   render();
@@ -225,6 +311,7 @@ function startRound() {
   const d = deck();
   state.round = state.shuffle ? shuffleArr(d.words) : d.words.slice();
   state.roundIndex = 0; state.unknownIds = []; state.studyDone = false; state.revealed = false;
+  state.roundDeckId = state.deckId;
 }
 async function action(a, el) {
   if (a === 'drawer') state.drawer = !state.drawer;
@@ -262,6 +349,16 @@ async function action(a, el) {
   }
   else if (a === 'restart-round') startRound();
   else if (a === 'share-deck') await shareDeck();
+  else if (a === 'complete-deck') {
+    const deckId = el.dataset.deck, name = el.dataset.name || '이';
+    if (!confirm(`"${name}" 단어장 학습을 종료할까요? 홈 화면 목록에서 숨겨지고, "완료한 단어장"에서 다시 볼 수 있어요.`)) return;
+    const r = await supabase.from('decks').update({ completed: true }).eq('id', deckId);
+    if (r.error) { alert(r.error.message); return; }
+    const target = decks.find(dk => dk.id === deckId);
+    if (target) target.completed = true;
+    goto('home');
+    return;
+  }
   else if (a === 'delete-deck') {
     const deckId = el.dataset.deck, name = el.dataset.name || '이';
     if (!confirm(`"${name}" 단어장을 삭제하시겠어요? 안에 있는 단어와 오답 기록도 함께 삭제돼요.`)) return;
@@ -359,7 +456,7 @@ async function authenticate(e) {
     state.user = result.data.user;
     state.nickname = nickname;
     await supabase.from('profiles').upsert({ id: state.user.id, nickname });
-    await loadCloudData();
+    await loadCloudData(false);
     state.onboard = { step: 0, gender: null, age: null, languages: [], goalIndex: 0, levels: {}, goals: {} };
     state.screen = 'onboarding';
     render();
@@ -385,36 +482,41 @@ async function advanceOnboarding() {
 async function finishOnboarding() {
   const o = state.onboard;
   await supabase.from('profiles').update({ gender: o.gender, age_range: o.age }).eq('id', state.user.id);
-  for (const lang of o.languages) {
-    await supabase.from('user_languages').upsert({ user_id: state.user.id, language: lang, level: o.levels[lang]||null, goals: (o.goals[lang]||[]).join(',') }, { onConflict: 'user_id,language' });
+  const langs = o.languages.length ? o.languages : [state.language];
+  for (const lang of langs) {
+    const level = o.levels[lang] || '초급';
+    await supabase.from('user_languages').upsert({ user_id: state.user.id, language: lang, level, goals: (o.goals[lang]||[]).join(',') }, { onConflict: 'user_id,language' });
+    state.userLevels[lang] = level;
+    await ensureLanguageSeed(lang, level);
   }
-  if (o.languages.length && !o.languages.includes(state.language)) {
-    state.language = o.languages[0];
-    await ensureLanguageSeed(state.language);
-    const langDecks = decks.filter(d=>d.language===state.language);
-    state.deckId = langDecks[0]?.id || null;
-  }
+  state.language = langs[0];
+  const langDecks = decks.filter(d=>d.language===state.language);
+  state.deckId = langDecks[0]?.id || null;
   state.onboard = null;
   goto('home');
 }
-async function ensureLanguageSeed(language) {
+async function ensureLanguageSeed(language, level) {
   if (decks.some(d => d.language === language)) return;
-  const samples = initialDecksByLanguage[language] || [];
+  const lvl = level || state.userLevels[language] || '초급';
+  const byLevel = initialDecksByLevel[language] || {};
+  const samples = byLevel[lvl] || byLevel['초급'] || [];
   if (!samples.length) return;
   for (const sample of samples) {
     const { data: d } = await supabase.from('decks').insert({ owner_id: state.user.id, name: sample.name, icon: sample.icon, language }).select().single();
     await supabase.from('words').insert(sample.words.map(w => ({ front: w.front, back: w.back, example: w.example||'', example_ko: w.example_ko||'', synonyms: w.synonyms||'', pinyin: w.pinyin||'', deck_id: d.id })));
   }
-  const { data } = await supabase.from('decks').select('id,name,icon,language,share_token,words(id,front,back,example,example_ko,synonyms,pinyin)').order('created_at');
+  const { data } = await supabase.from('decks').select('id,name,icon,language,share_token,completed,words(id,front,back,example,example_ko,synonyms,pinyin)').order('created_at');
   decks = data || [];
 }
-async function loadCloudData() {
+async function loadCloudData(seed) {
   const { data: p } = await supabase.from('profiles').select('nickname').eq('id', state.user.id).single();
   state.nickname = p?.nickname || '';
-  const { data, error } = await supabase.from('decks').select('id,name,icon,language,share_token,words(id,front,back,example,example_ko,synonyms,pinyin)').order('created_at');
+  const { data: uls } = await supabase.from('user_languages').select('language,level').eq('user_id', state.user.id);
+  state.userLevels = {}; (uls||[]).forEach(u => { state.userLevels[u.language] = u.level || '초급'; });
+  const { data, error } = await supabase.from('decks').select('id,name,icon,language,share_token,completed,words(id,front,back,example,example_ko,synonyms,pinyin)').order('created_at');
   if (error) return alert('단어장을 불러오지 못했어요: ' + error.message);
   decks = data || [];
-  await ensureLanguageSeed(state.language);
+  if (seed !== false) await ensureLanguageSeed(state.language);
   const langDecks = decks.filter(d => d.language === state.language);
   state.deckId = langDecks[0]?.id || decks[0]?.id || null;
   const { data: m } = await supabase.from('mistakes').select('word_id,wrong_count,next_review_at,words(id,front,back,example,example_ko,synonyms,pinyin)').eq('owner_id', state.user.id);
@@ -506,7 +608,7 @@ async function askAI(e){
   render();
   const { data, error } = await supabase.functions.invoke('ask-ai', { body: { messages: state.aiMessages.map(m=>({role:m.role,content:m.content})), language: state.language } });
   state.aiBusy = false;
-  if (error || data?.error) state.aiMessages.push({ role: 'assistant', content: '죄송해요, 답변을 가져오지 못했어요. 잠시 후 다시 시도해 주세요.' });
+  if (error || data?.error) state.aiMessages.push({ role: 'assistant', content: '죄송해요, 답변을 가져오지 못했어요: ' + (data?.error || error?.message || '알 수 없는 오류') });
   else state.aiMessages.push({ role: 'assistant', content: data.reply || '' });
   render();
 }
@@ -548,13 +650,17 @@ async function init() {
     const newUser = session?.user || null;
     if (newUser && newUser.id !== state.user?.id) {
       state.user = newUser;
-      await loadCloudData();
+      await loadCloudData(false);
       if (!state.nickname) {
         const nickname = (prompt('닉네임을 입력해 주세요.') || newUser.email.split('@')[0]).trim();
         state.nickname = nickname;
         await supabase.from('profiles').upsert({ id: newUser.id, nickname });
         state.onboard = { step: 0, gender: null, age: null, languages: [], goalIndex: 0, levels: {}, goals: {} };
         state.screen = 'onboarding';
+      } else {
+        await ensureLanguageSeed(state.language);
+        const langDecks = decks.filter(d=>d.language===state.language);
+        state.deckId = langDecks[0]?.id || decks[0]?.id || null;
       }
       if (state.pendingShare) await claimSharedDeck(state.pendingShare);
       render();
