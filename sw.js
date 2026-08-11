@@ -1,5 +1,5 @@
-const CACHE = 'polygo-v1';
-const files = ['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./icon.svg'];
+const CACHE = 'polygo-v2';
+const files = ['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./icon.svg','./icon-512.png','./icon-180.png'];
 self.addEventListener('install', e => {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(files)));
