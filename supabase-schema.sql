@@ -92,3 +92,15 @@ create policy "own user_languages" on public.user_languages for all to authentic
 -- Migration 6: 단어장 학습 종료(완료 처리)
 -- ============================================================
 alter table public.decks add column if not exists completed boolean not null default false;
+
+-- ============================================================
+-- Migration 7: 오답노트를 SM-2 적응형 간격 반복으로 전환
+-- (next_review_at은 최근 복습 시각 기록용으로 남겨두고,
+--  실제 복습 due 여부는 next_review_date로 판단합니다)
+-- ============================================================
+alter table public.mistakes add column if not exists ease_factor double precision not null default 2.5;
+alter table public.mistakes add column if not exists interval_days int not null default 0;
+alter table public.mistakes add column if not exists repetition_count int not null default 0;
+alter table public.mistakes add column if not exists next_review_date date not null default current_date;
+alter table public.mistakes add constraint mistakes_ease_factor_min check (ease_factor >= 1.3) not valid;
+alter table public.mistakes validate constraint mistakes_ease_factor_min;
