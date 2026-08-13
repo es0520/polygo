@@ -4,6 +4,7 @@ import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js';
 const configured = SUPABASE_URL.startsWith('https://') && !SUPABASE_PUBLISHABLE_KEY.startsWith('YOUR_');
 const supabase = configured ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
 const GREETINGS = { '스페인어': '¡Hola', '영어': 'Hello', '중국어': '你好' };
+const LEVELS = ['입문','초급','초중급','중급','중고급','고급'];
 const initialDecksByLevel = {
   '스페인어': {
     '입문': [
@@ -705,14 +706,14 @@ function onboardGoals(){
   const lang = o.languages[o.goalIndex] || o.languages[0];
   const level = o.levels[lang];
   const goals = o.goals[lang] || [];
-  const levelOptions = ['입문','초급','초중급','중급','중고급','고급'];
+  const levelOptions = LEVELS;
   const goalOptions = ['여행','커리어','취미','친목'];
   return `<div class="create-head"><h2>${escape(lang)} 학습 정보</h2><p>현재 수준과 목표를 알려주세요. (${o.goalIndex+1}/${o.languages.length})</p></div><div class="section-title"><h2>현재 수준</h2></div><div class="deck-list">${levelOptions.map(v=>`<button class="deck-row ${level===v?'selected':''}" data-action="onboard-level" data-lang="${lang}" data-value="${v}"><span style="flex:1">${escape(v)}</span>${level===v?'<b>✓</b>':''}</button>`).join('')}</div><div class="section-title"><h2>목표 (여러 개 선택 가능)</h2></div><div class="deck-list">${goalOptions.map(v=>`<button class="deck-row ${goals.includes(v)?'selected':''}" data-action="onboard-goal" data-lang="${lang}" data-value="${v}"><span style="flex:1">${escape(v)}</span>${goals.includes(v)?'<b>✓</b>':''}</button>`).join('')}</div><div class="onboard-actions"><button class="primary" data-action="onboard-next">${o.goalIndex+1<o.languages.length?'다음 언어':'완료'} ${icon('chev')}</button></div>`;
 }
 function nav(){return state.user && state.screen!=='onboarding'?`<nav><button class="${state.screen==='home'?'active':''}" data-screen="home">${icon('home')}<span>홈</span></button><button class="${state.screen==='study'?'active':''}" data-screen="study">${icon('book')}<span>단어장</span></button><button class="${state.screen==='quiz'?'active':''}" data-screen="quiz">${icon('quiz')}<span>퀴즈</span></button><button class="${state.screen==='mistakes'?'active':''}" data-screen="mistakes">${icon('redo')}<span>오답</span></button></nav>`:'';}
 function drawer(){
   const name = state.nickname || state.user?.email?.split('@')[0] || '';
-  return `<div class="overlay ${state.drawer?'show':''}" data-action="drawer"></div><aside class="drawer ${state.drawer?'show':''}"><div class="brand"><div class="logo">P</div><b>PolyGo</b><button data-action="drawer">×</button></div><div class="profile"><span class="avatar">${escape(name.slice(0,1).toUpperCase()||'P')}</span><div><b>${escape(name)}</b><small>클라우드 동기화 사용 중</small></div></div><div class="drawer-links"><button data-action="account">${icon('user')} 회원 정보 ${icon('chev')}</button><button data-screen="ai">💬 AI에게 질문하기 ${icon('chev')}</button><button data-screen="study">${icon('book')} 단어장 모드 ${icon('chev')}</button><button data-action="settings">${icon('settings')} 설정 ${icon('chev')}</button></div><p>v0.4 · 계정에 안전하게 동기화됨</p></aside>`;
+  return `<div class="overlay ${state.drawer?'show':''}" data-action="drawer"></div><aside class="drawer ${state.drawer?'show':''}"><div class="brand"><div class="logo">P</div><b>PolyGo</b><button data-action="drawer">×</button></div><div class="profile"><span class="avatar">${escape(name.slice(0,1).toUpperCase()||'P')}</span><div><b>${escape(name)}</b><small>클라우드 동기화 사용 중</small></div></div><div class="drawer-links"><button data-action="account">${icon('user')} 회원 정보 ${icon('chev')}</button><button data-action="level-modal">🎯 학습 레벨 설정 ${icon('chev')}</button><button data-screen="ai">💬 AI에게 질문하기 ${icon('chev')}</button><button data-screen="study">${icon('book')} 단어장 모드 ${icon('chev')}</button><button data-action="settings">${icon('settings')} 설정 ${icon('chev')}</button></div><p>v0.4 · 계정에 안전하게 동기화됨</p></aside>`;
 }
 function modal(){
   if (!state.modal) return '';
@@ -720,6 +721,8 @@ function modal(){
     ? `<h2>학습 언어</h2>${['스페인어','영어','중국어'].map(l=>`<button class="choice-line ${state.language===l?'selected':''}" data-action="set-language" data-lang="${l}">${langFlag(l)} ${l} ${state.language===l?'<b>✓</b>':''}</button>`).join('')}`
     : state.modal === 'settings'
     ? `<h2>설정</h2><button class="choice-line" data-action="dark">${icon('sun')} 다크 모드 <span class="switch ${state.dark?'on':''}"></span></button><a class="choice-line" href="mailto:eunseosw0520@naver.com">✉ 관리자 문의</a>`
+    : state.modal === 'level'
+    ? `<h2>${escape(state.language)} 학습 레벨</h2><p class="modal-copy">레벨을 고르면 그 레벨에 맞는 새 단어장이 추가돼요. 다른 언어의 레벨을 바꾸려면 학습 언어를 먼저 바꾼 뒤 다시 열어주세요.</p>${LEVELS.map(v=>`<button class="choice-line ${state.userLevels[state.language]===v?'selected':''}" data-action="set-level" data-value="${v}">${v} ${state.userLevels[state.language]===v?'<b>✓</b>':''}</button>`).join('')}`
     : `<h2>회원 정보</h2><p class="modal-copy">${escape(state.nickname||'')} · ${escape(state.user?.email||'')}</p><button class="choice-line" data-action="change-password">비밀번호 변경</button><button class="choice-line disabled">네이버 계정 연동 <small>준비 중</small></button><button class="choice-line disabled">카카오 계정 연동 <small>준비 중</small></button><button class="choice-line disabled">구글 계정 연동 <small>준비 중</small></button><button class="choice-line" data-action="logout">로그아웃</button><button class="choice-line" data-action="request-delete-account">회원 탈퇴</button>`;
   return `<div class="modal-wrap"><div class="modal-back" data-action="close-modal"></div><section class="modal"><button class="close" data-action="close-modal">×</button>${body}</section></div>`;
 }
@@ -768,6 +771,12 @@ async function action(a, el) {
       state.deckId = langDecks[0]?.id || null;
       state.screen = 'home';
     }
+  }
+  else if (a === 'level-modal') state.modal = 'level';
+  else if (a === 'set-level') {
+    const level = el.dataset.value;
+    state.modal = null;
+    await setUserLevel(state.language, level);
   }
   else if (a === 'logout') { await supabase.auth.signOut(); state.user=null; decks=[]; state.mistakes=[]; state.nickname=''; state.drawer=false; state.modal=null; }
   else if (a === 'dark') { state.dark = !state.dark; localStorage.setItem('lingo-dark', state.dark); }
@@ -957,6 +966,26 @@ async function ensureLanguageSeed(language, level) {
   }
   const { data } = await supabase.from('decks').select('id,name,icon,language,share_token,completed,words(id,front,back,example,example_ko,synonyms,pinyin)').order('created_at');
   decks = data || [];
+}
+async function setUserLevel(language, level) {
+  await supabase.from('user_languages').upsert({ user_id: state.user.id, language, level }, { onConflict: 'user_id,language' });
+  state.userLevels[language] = level;
+  await addLevelDeck(language, level);
+}
+async function addLevelDeck(language, level) {
+  const byLevel = initialDecksByLevel[language] || {};
+  const samples = byLevel[level] || [];
+  if (!samples.length) return;
+  const existingNames = new Set(decks.filter(d => d.language === language).map(d => d.name));
+  const toAdd = samples.filter(s => !existingNames.has(s.name));
+  if (!toAdd.length) { alert('이미 이 레벨의 단어장이 있어요.'); return; }
+  for (const sample of toAdd) {
+    const { data: d } = await supabase.from('decks').insert({ owner_id: state.user.id, name: sample.name, icon: sample.icon, language }).select().single();
+    await supabase.from('words').insert(sample.words.map(w => ({ front: w.front, back: w.back, example: w.example||'', example_ko: w.example_ko||'', synonyms: w.synonyms||'', pinyin: w.pinyin||'', deck_id: d.id })));
+  }
+  const { data } = await supabase.from('decks').select('id,name,icon,language,share_token,completed,words(id,front,back,example,example_ko,synonyms,pinyin)').order('created_at');
+  decks = data || [];
+  alert('새 단어장이 추가됐어요!');
 }
 async function loadCloudData(seed) {
   const { data: p } = await supabase.from('profiles').select('nickname').eq('id', state.user.id).single();
