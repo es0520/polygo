@@ -639,16 +639,16 @@ function quizWords() {
   return deck().words;
 }
 function quizTypeTabs() {
-  if (state.language !== '중국어') return [['choice','객관식'],['spell','직접 입력'],['voice','말하기']];
-  return [['choice','한자→한국어'],['spell','한자 입력'],['pinyin','한자→병음'],['ko-pinyin','한국어→병음'],['ko-char','한국어→한자'],['voice','말하기']];
+  if (state.language !== '중국어') return [['choice','객관식'],['spell','뜻 입력'],['write','단어 쓰기'],['voice','말하기']];
+  return [['choice','한자→한국어'],['spell','한자 입력'],['pinyin','한자→병음'],['hanzi-write','한자 쓰기',true],['ko-char','한국어→한자'],['voice','말하기']];
 }
 function quizConfig(type, word) {
   const meaningLabel = state.language === '중국어' ? '한자의 뜻은?' : `다음 ${state.language}의 뜻은?`;
   const configs = {
     choice: { field: 'back', prompt: word.front, label: meaningLabel },
     spell: { field: 'back', prompt: word.front, label: meaningLabel },
+    write: { field: 'front', prompt: word.back, label: `한국어 뜻을 보고 ${state.language}로 입력하세요` },
     pinyin: { field: 'pinyin', prompt: word.front, label: '한자를 보고 병음을 입력하세요' },
-    'ko-pinyin': { field: 'pinyin', prompt: word.back, label: '한국어 뜻을 보고 병음을 입력하세요' },
     'ko-char': { field: 'front', prompt: word.back, label: '한국어 뜻에 맞는 한자를 고르세요' },
     voice: { field: 'front', prompt: word.back, label: `다음 뜻을 ${state.language}로 말해 보세요` }
   };
@@ -676,9 +676,9 @@ function quiz() {
           ? `<div class="choices">${buildOptions(word,cfg.field).map(o=>`<button data-answer="${escape(o)}">${escape(o)}</button>`).join('')}</div>`
           : type === 'voice'
             ? `<button class="voice-btn" data-action="voice">🎙 말하기 시작</button><p id="voice-result" class="hint"></p>`
-            : `<form id="spell-form"><input autocomplete="off" placeholder="${cfg.field==='pinyin'?'성조까지 정확히 입력 (예: nǐ hǎo)':'한국어 뜻을 입력하세요'}" /><button class="primary">확인</button></form>`
+            : `<form id="spell-form"><input autocomplete="off" placeholder="${cfg.field==='pinyin'?'성조까지 정확히 입력 (예: nǐ hǎo)':cfg.field==='front'?`${state.language}로 입력하세요`:'한국어 뜻을 입력하세요'}" /><button class="primary">확인</button></form>`
       }</div>`;
-  return `${languagePill()}${state.quizSource==='mistakes'?'<p class="intro">오답 복습 퀴즈</p>':''}<div class="quiz-types">${quizTypeTabs().map(([v,label])=>`<button class="${type===v?'active':''}" data-quiz="${v}">${label}</button>`).join('')}</div>${body}`;
+  return `${languagePill()}${state.quizSource==='mistakes'?'<p class="intro">오답 복습 퀴즈</p>':''}<div class="quiz-types">${quizTypeTabs().map(([v,label,disabled])=>`<button class="${type===v?'active':''} ${disabled?'disabled':''}" data-quiz="${v}" ${disabled?'data-disabled="1"':''}>${label}${disabled?' <small>준비 중</small>':''}</button>`).join('')}</div>${body}`;
 }
 function dueLabel(dateStr) {
   const today = todayStr();
@@ -735,14 +735,20 @@ function modal(){
     ? `<h2>${escape(state.language)} 학습 레벨</h2><p class="modal-copy">레벨을 고르면 그 레벨에 맞는 새 단어장이 추가돼요. 다른 언어의 레벨을 바꾸려면 학습 언어를 먼저 바꾼 뒤 다시 열어주세요.</p>${LEVELS.map(v=>`<button class="choice-line ${state.userLevels[state.language]===v?'selected':''}" data-action="set-level" data-value="${v}">${v} ${state.userLevels[state.language]===v?'<b>✓</b>':''}</button>`).join('')}`
     : state.modal === 'mode'
     ? `<h2>학습 모드</h2><p class="modal-copy">코스 학습은 레벨에 맞춰 준비된 단어장으로, 내 단어장은 직접 만든 단어장으로 학습해요.</p><button class="choice-line ${state.deckMode==='course'?'selected':''}" data-action="set-mode" data-value="course">📘 코스 학습 모드 ${state.deckMode==='course'?'<b>✓</b>':''}<small>레벨별 단어장으로 순서대로 학습</small></button><button class="choice-line ${state.deckMode==='custom'?'selected':''}" data-action="set-mode" data-value="custom">📓 내 단어장 모드 ${state.deckMode==='custom'?'<b>✓</b>':''}<small>내가 직접 만든 단어장으로 학습</small></button>`
-    : `<h2>회원 정보</h2><p class="modal-copy">${escape(state.nickname||'')} · ${escape(state.user?.email||'')}</p><button class="choice-line" data-action="change-password">비밀번호 변경</button><button class="choice-line disabled">네이버 계정 연동 <small>준비 중</small></button><button class="choice-line disabled">카카오 계정 연동 <small>준비 중</small></button><button class="choice-line disabled">구글 계정 연동 <small>준비 중</small></button><button class="choice-line" data-action="logout">로그아웃</button><button class="choice-line" data-action="request-delete-account">회원 탈퇴</button>`;
+    : (() => {
+        const providers = (state.user?.identities||[]).map(i=>i.provider);
+        const googleBtn = providers.includes('google')
+          ? '<button class="choice-line disabled">구글 계정 연동 <small>연동됨</small></button>'
+          : '<button class="choice-line" data-action="link-google">구글 계정 연동</button>';
+        return `<h2>회원 정보</h2><p class="modal-copy">${escape(state.nickname||'')} · ${escape(state.user?.email||'')}</p><button class="choice-line" data-action="change-password">비밀번호 변경</button><button class="choice-line disabled">네이버 계정 연동 <small>준비 중</small></button><button class="choice-line disabled">카카오 계정 연동 <small>준비 중</small></button>${googleBtn}<button class="choice-line" data-action="logout">로그아웃</button><button class="choice-line" data-action="request-delete-account">회원 탈퇴</button>`;
+      })();
   return `<div class="modal-wrap"><div class="modal-back" data-action="close-modal"></div><section class="modal"><button class="close" data-action="close-modal">×</button>${body}</section></div>`;
 }
 function bind() {
   document.querySelectorAll('[data-screen]').forEach(b=>b.onclick=()=>goto(b.dataset.screen));
   document.querySelectorAll('[data-deck]').forEach(b=>b.onclick=()=>{state.deckId=b.dataset.deck;goto('study')});
   document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>action(b.dataset.action,b));
-  document.querySelectorAll('[data-quiz]').forEach(b=>b.onclick=()=>{state.quizType=b.dataset.quiz;state.answered=null;render()});
+  document.querySelectorAll('[data-quiz]').forEach(b=>b.onclick=()=>{if(b.dataset.disabled)return;state.quizType=b.dataset.quiz;state.answered=null;render()});
   document.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>answer(b.dataset.answer));
   document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>rate(Number(b.dataset.rate)));
   const form=$('#create-form'); if(form) form.onsubmit=createDeck;
@@ -771,6 +777,11 @@ async function action(a, el) {
   else if (a === 'close-modal') state.modal = null;
   else if (a === 'auth-mode') state.authMode = state.authMode === 'login' ? 'signup' : 'login';
   else if (a === 'oauth-google') { await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } }); return; }
+  else if (a === 'link-google') {
+    const { error } = await supabase.auth.linkIdentity({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
+    if (error) alert('연동에 실패했어요: ' + error.message);
+    return;
+  }
   else if (a === 'oauth-kakao') { await supabase.auth.signInWithOAuth({ provider: 'kakao', options: { redirectTo: location.origin + location.pathname } }); return; }
   else if (a === 'set-language') {
     const lang = el.dataset.lang;
