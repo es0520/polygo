@@ -104,3 +104,13 @@ alter table public.mistakes add column if not exists repetition_count int not nu
 alter table public.mistakes add column if not exists next_review_date date not null default current_date;
 alter table public.mistakes add constraint mistakes_ease_factor_min check (ease_factor >= 1.3) not valid;
 alter table public.mistakes validate constraint mistakes_ease_factor_min;
+
+-- ============================================================
+-- Migration 8: 코스 학습 모드 / 내 단어장 모드 분리
+-- (course = 레벨별 시작 단어장, custom = 사용자가 직접 만든 단어장)
+-- 기존 단어장은 이름 패턴으로 최대한 course를 구분해 백필하고,
+-- 매칭되지 않는 나머지는 기본값 custom으로 남습니다.
+-- ============================================================
+alter table public.decks add column if not exists source text not null default 'custom' check (source in ('course','custom'));
+update public.decks set source = 'course' where name ~ '(스페인어|영어|중국어) (입문|초급|초중급|중급|중고급|고급)';
+update public.decks set source = 'course' where name in ('여행 스페인어','기초 일상회화','중급 스페인어','고급 스페인어','여행 영어','중급 영어','고급 영어','여행 중국어','중급 중국어','고급 중국어');
