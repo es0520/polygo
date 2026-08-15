@@ -545,7 +545,7 @@ const state = {
   screen: 'home', drawer: false, language: '스페인어', deckId: null, nickname: '',
   round: [], roundIndex: 0, roundDeckId: null, unknownIds: [], studyDone: false,
   revealed: false, shuffle: false,
-  quizType: 'choice', quizSource: 'deck', quizIndex: 0, answered: null,
+  quizType: 'choice', quizSource: 'deck', quizIndex: 0, answered: null, quizDeckIds: [],
   mistakes: [], dark: localStorage.getItem('lingo-dark') === 'true', modal: null,
   user: null, authMode: 'login', pendingShare: null,
   ocrCandidates: [], ocrBusy: false, aiMessages: [], aiBusy: false, onboard: null, userLevels: {},
@@ -621,7 +621,8 @@ function buildOptions(word, field) {
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 function quizWords() {
   if (state.quizSource === 'mistakes') { const today = todayStr(); return state.mistakes.filter(w=>(w.next_review_date||today) <= today); }
-  return deck().words;
+  const ids = state.quizDeckIds.length ? state.quizDeckIds : [state.deckId];
+  return decks.filter(d => ids.includes(d.id)).flatMap(d => d.words);
 }
 function quizTypeTabs() {
   if (state.language !== '중국어') return [['choice','객관식'],['spell','뜻 입력'],['write','단어 쓰기'],['voice','말하기']];
@@ -642,10 +643,11 @@ function quizConfig(type, word) {
 function quiz() {
   const list = quizWords();
   if (!quizTypeTabs().some(([v])=>v===state.quizType)) state.quizType = quizTypeTabs()[0][0];
+  const deckSelectBtn = state.quizSource === 'deck' ? `<button class="toggle" data-action="quiz-deck-modal">🗂 단어장 ${state.quizDeckIds.length||1}개 선택됨 ${icon('chev')}</button>` : '';
   if (!list.length) {
     return state.quizSource === 'mistakes'
       ? `${languagePill()}<div class="empty"><div>✓</div><h2>지금은 복습할 오답이 없어요</h2><p>복습 주기가 되면 다시 표시돼요.</p><button class="primary" data-action="quiz-deck-mode">단어장 퀴즈로 돌아가기</button></div>`
-      : `${languagePill()}<div class="empty"><div>＋</div><h2>단어가 없어요</h2><p>단어장에 단어를 먼저 추가해 주세요.</p><button class="primary" data-screen="create">단어 추가하기</button></div>`;
+      : `${languagePill()}${deckSelectBtn}<div class="empty"><div>＋</div><h2>단어가 없어요</h2><p>선택한 단어장에 단어가 없어요. 단어장을 다시 선택하거나 단어를 추가해 주세요.</p><button class="primary" data-screen="create">단어 추가하기</button></div>`;
   }
   const word = list[state.quizIndex % list.length];
   const type = state.quizType;
@@ -663,7 +665,7 @@ function quiz() {
             ? `<button class="voice-btn" data-action="voice">🎙 말하기 시작</button><p id="voice-result" class="hint"></p>`
             : `<form id="spell-form"><input autocomplete="off" placeholder="${cfg.field==='pinyin'?'성조까지 정확히 입력 (예: nǐ hǎo)':cfg.field==='front'?`${state.language}로 입력하세요`:'한국어 뜻을 입력하세요'}" /><button class="primary">확인</button></form>`
       }</div>`;
-  return `${languagePill()}${state.quizSource==='mistakes'?'<p class="intro">오답 복습 퀴즈</p>':''}<div class="quiz-types">${quizTypeTabs().map(([v,label,disabled])=>`<button class="${type===v?'active':''} ${disabled?'disabled':''}" data-quiz="${v}" ${disabled?'data-disabled="1"':''}>${label}${disabled?' <small>준비 중</small>':''}</button>`).join('')}</div>${body}`;
+  return `${languagePill()}${state.quizSource==='mistakes'?'<p class="intro">오답 복습 퀴즈</p>':deckSelectBtn}<div class="quiz-types">${quizTypeTabs().map(([v,label,disabled])=>`<button class="${type===v?'active':''} ${disabled?'disabled':''}" data-quiz="${v}" ${disabled?'data-disabled="1"':''}>${label}${disabled?' <small>준비 중</small>':''}</button>`).join('')}</div>${body}`;
 }
 function dueLabel(dateStr) {
   const today = todayStr();
@@ -690,8 +692,12 @@ function buildLevelTestQuestions(language) {
   const qs = [];
   levels.forEach(lvl => {
     const words = (byLevel[lvl] || []).flatMap(d => d.words);
-    shuffleArr(words).slice(0, 2).forEach(w => qs.push({ level: lvl, word: w }));
+    shuffleArr(words).slice(0, 3).forEach(w => qs.push({ level: lvl, word: w }));
   });
+  // Alternate multiple-choice (recognition) and typed-answer (recall) questions so
+  // guessing alone can't carry the whole test - see user feedback that choice-only
+  // placement couldn't reliably tell levels apart.
+  qs.forEach((q, i) => { q.type = i % 2 === 0 ? 'choice' : 'spell'; });
   return qs;
 }
 function levelTestOptions(word, language) {
@@ -699,19 +705,32 @@ function levelTestOptions(word, language) {
   const distractors = [...new Set(pool.filter(x => x.back !== word.back).map(x => x.back))].sort(() => .5 - Math.random()).slice(0, 3);
   return shuffleArr([word.back, ...distractors]);
 }
+function checkLevelTestAnswer(word, value) {
+  const accepted = [word.back, ...(word.synonyms||'').split(',').map(s=>s.trim()).filter(Boolean)];
+  return accepted.some(v => v && normalise(v) === normalise(value||''));
+}
+function advanceLevelTest(value) {
+  const t = state.levelTest;
+  const q = t.questions[t.index];
+  if (checkLevelTestAnswer(q.word, value)) t.correct++;
+  t.index++;
+  render();
+}
 function levelTestScreen() {
   const t = state.levelTest;
   if (!t) return '';
   if (t.index >= t.questions.length) {
     const levels = levelsFor(t.language);
-    const recIdx = Math.min(levels.length - 1, Math.floor(t.correct / 2));
+    const recIdx = Math.min(levels.length - 1, Math.floor(t.correct / 3));
     const recommended = levels[recIdx];
     return `<div class="empty"><div>🎯</div><h2>레벨 테스트 완료!</h2><p>${t.correct} / ${t.questions.length}개 정답 · 추천 레벨: <b>${recommended}</b></p><button class="primary" data-action="apply-level-test" data-value="${recommended}">이 레벨로 시작하기</button><button class="soft" data-action="cancel-level-test">직접 선택할래요</button></div>`;
   }
   const q = t.questions[t.index];
   const word = q.word;
-  const opts = levelTestOptions(word, t.language);
-  return `<div class="quiz-card"><span class="card-label">${t.index+1} / ${t.questions.length} · ${q.level}</span><strong>${escape(word.front)}</strong><div class="choices">${opts.map(o=>`<button data-action="level-test-answer" data-answer="${escape(o)}">${escape(o)}</button>`).join('')}</div></div>`;
+  const body = q.type === 'spell'
+    ? `<form id="level-test-form"><input autocomplete="off" placeholder="한국어 뜻을 입력하세요" /><button class="primary">확인</button></form>`
+    : `<div class="choices">${levelTestOptions(word, t.language).map(o=>`<button data-action="level-test-answer" data-answer="${escape(o)}">${escape(o)}</button>`).join('')}</div>`;
+  return `<div class="quiz-card"><span class="card-label">${t.index+1} / ${t.questions.length} · ${q.level}</span><strong>${escape(word.front)}</strong>${body}</div>`;
 }
 function onboarding(){
   const o = state.onboard;
@@ -749,6 +768,8 @@ function modal(){
     ? `<h2>${escape(state.language)} 학습 레벨</h2><p class="modal-copy">레벨을 고르면 그 레벨에 맞는 새 단어장이 추가돼요. 다른 언어의 레벨을 바꾸려면 학습 언어를 먼저 바꾼 뒤 다시 열어주세요.</p><button class="choice-line" data-action="start-level-test">🎯 레벨 테스트로 정하기</button>${levelsFor(state.language).map(v=>`<button class="choice-line ${state.userLevels[state.language]===v?'selected':''}" data-action="set-level" data-value="${v}">${v} ${state.userLevels[state.language]===v?'<b>✓</b>':''}</button>`).join('')}`
     : state.modal === 'mode'
     ? `<h2>학습 모드</h2><p class="modal-copy">코스 학습은 레벨에 맞춰 준비된 단어장으로, 내 단어장은 직접 만든 단어장으로 학습해요.</p><button class="choice-line ${state.deckMode==='course'?'selected':''}" data-action="set-mode" data-value="course">📘 코스 학습 모드 ${state.deckMode==='course'?'<b>✓</b>':''}<small>레벨별 단어장으로 순서대로 학습</small></button><button class="choice-line ${state.deckMode==='custom'?'selected':''}" data-action="set-mode" data-value="custom">📓 내 단어장 모드 ${state.deckMode==='custom'?'<b>✓</b>':''}<small>내가 직접 만든 단어장으로 학습</small></button>`
+    : state.modal === 'quiz-decks'
+    ? `<h2>퀴즈에 포함할 단어장</h2><p class="modal-copy">선택한 단어장들의 단어를 섞어서 퀴즈를 봐요. 최소 1개는 선택돼 있어야 해요.</p>${modeDecks().map(d=>`<button class="choice-line ${state.quizDeckIds.includes(d.id)?'selected':''}" data-action="toggle-quiz-deck" data-deck="${d.id}">${d.icon} ${escape(d.name)} <small>${d.words.length}개</small> ${state.quizDeckIds.includes(d.id)?'<b>✓</b>':''}</button>`).join('')}`
     : (() => {
         const providers = (state.user?.identities||[]).map(i=>i.provider);
         const googleBtn = providers.includes('google')
@@ -769,12 +790,21 @@ function bind() {
   const authForm=$('#auth-form'); if(authForm) authForm.onsubmit=authenticate;
   const nicknameForm=$('#nickname-form'); if(nicknameForm) nicknameForm.onsubmit=submitNickname;
   const spell=$('#spell-form'); if(spell) spell.onsubmit=e=>{e.preventDefault();answer(spell.querySelector('input').value.trim())};
+  const levelTestForm=$('#level-test-form'); if(levelTestForm) levelTestForm.onsubmit=e=>{e.preventDefault();advanceLevelTest(levelTestForm.querySelector('input').value.trim())};
   const aiForm=$('#ai-form'); if(aiForm) aiForm.onsubmit=askAI;
 }
 function goto(screen) {
   state.screen = screen; state.revealed = false; state.drawer = false;
   if (screen === 'study' && state.roundDeckId !== state.deckId) startRound();
-  if (screen === 'quiz') { state.quizSource = 'deck'; state.quizIndex = 0; state.answered = null; }
+  if (screen === 'quiz') {
+    const validIds = new Set(modeDecks().map(d=>d.id));
+    if (!state.quizDeckIds.some(id=>validIds.has(id))) {
+      state.quizDeckIds = state.deckId && validIds.has(state.deckId) ? [state.deckId] : (modeDecks()[0] ? [modeDecks()[0].id] : []);
+    } else {
+      state.quizDeckIds = state.quizDeckIds.filter(id=>validIds.has(id));
+    }
+    state.quizSource = 'deck'; state.quizIndex = 0; state.answered = null;
+  }
   if (screen === 'create') state.ocrCandidates = [];
   render();
 }
@@ -894,12 +924,7 @@ async function action(a, el) {
     state.modal = null;
     state.screen = 'level-test';
   }
-  else if (a === 'level-test-answer') {
-    const t = state.levelTest;
-    const q = t.questions[t.index];
-    if (el.dataset.answer === q.word.back) t.correct++;
-    t.index++;
-  }
+  else if (a === 'level-test-answer') { advanceLevelTest(el.dataset.answer); return; }
   else if (a === 'apply-level-test') {
     const t = state.levelTest;
     const level = el.dataset.value;
@@ -920,6 +945,14 @@ async function action(a, el) {
   else if (a === 'delete-mistake') { await supabase.from('mistakes').delete().eq('owner_id',state.user.id).eq('word_id',el.dataset.word); state.mistakes=state.mistakes.filter(w=>w.id!==el.dataset.word); }
   else if (a === 'review-mistakes') { state.quizSource='mistakes'; state.quizIndex=0; state.answered=null; state.screen='quiz'; state.drawer=false; }
   else if (a === 'quiz-deck-mode') { state.quizSource='deck'; state.quizIndex=0; state.answered=null; }
+  else if (a === 'quiz-deck-modal') { state.modal = 'quiz-decks'; }
+  else if (a === 'toggle-quiz-deck') {
+    const id = el.dataset.deck;
+    const cur = state.quizDeckIds;
+    if (cur.includes(id)) { if (cur.length > 1) state.quizDeckIds = cur.filter(x=>x!==id); }
+    else state.quizDeckIds = [...cur, id];
+    state.quizIndex = 0; state.answered = null;
+  }
   else if (a === 'change-password') {
     const pw = prompt('새 비밀번호를 입력하세요 (8자 이상)');
     if (!pw) return;

@@ -11,6 +11,7 @@ android/keystore.properties
 android/.gradle/
 android/app/build/
 android/local.properties
+android/.idea/
 ios/App/Pods/
 ios/App/build/
 ios/App/App.xcworkspace/xcuserdata/
