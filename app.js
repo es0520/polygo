@@ -759,7 +759,7 @@ function bind() {
   document.querySelectorAll('[data-deck]').forEach(b=>b.onclick=()=>{state.deckId=b.dataset.deck;goto('study')});
   document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>action(b.dataset.action,b));
   document.querySelectorAll('[data-quiz]').forEach(b=>b.onclick=()=>{if(b.dataset.disabled)return;state.quizType=b.dataset.quiz;state.answered=null;render()});
-  document.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>answer(b.dataset.answer));
+  document.querySelectorAll('[data-answer]:not([data-action])').forEach(b=>b.onclick=()=>answer(b.dataset.answer));
   document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>rate(Number(b.dataset.rate)));
   const form=$('#create-form'); if(form) form.onsubmit=createDeck;
   const authForm=$('#auth-form'); if(authForm) authForm.onsubmit=authenticate;
