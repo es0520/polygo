@@ -1,0 +1,22 @@
+{
+  "name": "polygo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "PolyGo native app shell (Capacitor). Web app itself is plain, bundler-free app.js — this only exists for the Capacitor CLI/plugins.",
+  "scripts": {
+    "sync:www": "node scripts/build-www.mjs",
+    "cap:sync": "npm run sync:www && npx cap sync"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/browser": "^6.0.4",
+    "@capacitor/cli": "^6.2.0",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/ios": "^6.2.0"
+  },
+  "allowScripts": {
+    "sharp@0.32.6": true
+  }
+}

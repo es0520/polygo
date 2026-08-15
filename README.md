@@ -39,7 +39,49 @@
 
 배포 전에도 PC에서 `index.html`을 브라우저로 열어 화면을 확인할 수 있습니다. 서비스 워커(오프라인 실행)는 HTTPS 배포 환경에서 동작합니다.
 
+## 네이티브 앱 빌드 (Android / iOS)
+
+이 저장소는 [Capacitor](https://capacitorjs.com/)로 같은 웹 코드(`app.js`, `styles.css`, ...)를 Android/iOS 네이티브 앱으로도 감싸서 빌드합니다. 번들러는 여전히 없고, `npm`은 오직 Capacitor 툴체인을 위해서만 씁니다.
+
+```bash
+npm install
+cp config.example.js config.js   # 실제 Supabase 값으로 채우기 (기존 웹 배포와 동일)
+npm run cap:sync                 # www/에 웹 앱을 스테이징하고 android/, ios/에 동기화
+```
+
+### Android (Windows에서 가능, Mac 불필요)
+
+1. [Android Studio](https://developer.android.com/studio)를 설치합니다.
+2. `npx cap open android`로 프로젝트를 열고, 에뮬레이터나 실제 기기로 실행합니다.
+3. 정식 배포용 서명 빌드(AAB)는 `.github/workflows/android-release.yml`을 GitHub Actions에서 수동 실행(`workflow_dispatch`)하면 만들어집니다. 필요한 저장소 시크릿:
+   - `ANDROID_KEYSTORE_BASE64` — `keytool -genkeypair -v -keystore polygo-upload.keystore -alias polygo -keyalg RSA -keysize 2048 -validity 10000`로 만든 키스토어를 base64로 인코딩한 값
+   - `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`
+   - (선택) `PLAY_SERVICE_ACCOUNT_JSON` — Play Console API로 자동 업로드하려면 필요. 새 앱은 Play Console에서 **첫 업로드를 반드시 수동으로** 한 번 해야 이후 API 업로드가 허용됩니다.
+
+### iOS (Mac 없이 GitHub Actions macOS 러너로 빌드)
+
+로컬에 Mac이 없어도 `.github/workflows/ios-release.yml`이 `macos-14` 러너에서 빌드·서명·TestFlight 업로드까지 처리합니다. 서명은 [fastlane match](https://docs.fastlane.tools/actions/match/)로 관리합니다.
+
+1. Apple Developer Program에 가입합니다 ($99/년).
+2. App Store Connect에서 API 키를 만들고(Users and Access → Keys), `.p8` 파일을 한 번 받아둡니다.
+3. fastlane match가 인증서를 암호화해 저장할 **비공개 git 저장소**를 하나 만듭니다.
+4. GitHub 저장소 시크릿에 추가: `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_BASE64`(`.p8` 내용), `MATCH_GIT_URL`, `MATCH_PASSWORD`(직접 정하는 암호화 비밀번호), `APPLE_TEAM_ID`.
+5. `ios-release.yml`을 `lane: bootstrap_match`로 한 번 수동 실행해 인증서/프로비저닝 프로파일을 최초 생성합니다.
+6. 이후로는 `lane: beta`로 실행하면 서명된 IPA를 빌드해 TestFlight에 올립니다. 실제 기기(아이폰)로 TestFlight에서 설치해 테스트하고, 준비되면 App Store Connect에서 직접 심사 제출합니다.
+
+### 앱 아이콘/스플래시 변경
+
+`resources/logo.png`(투명 배경 로고)를 바꾼 뒤 아래 명령으로 다시 생성합니다.
+
+```bash
+npx capacitor-assets generate --android --ios --iconBackgroundColor '#6256e8' --iconBackgroundColorDark '#4a3fc0' --splashBackgroundColor '#f8f8fc' --splashBackgroundColorDark '#121018'
+```
+
+`--android --ios`를 반드시 함께 넘겨서 PWA(웹) 쪽 `manifest.webmanifest`/아이콘은 건드리지 않도록 합니다.
+
 ## 소셜 로그인 설정
+
+**네이티브 앱(Android/iOS)에서 로그인하려면** Supabase 대시보드 **Authentication → URL Configuration → Redirect URLs**에 `polygo://auth-callback`을 하나 추가하세요. 카카오/네이버 개발자 콘솔 쪽 설정은 그대로 둬도 됩니다 — 두 서비스 모두 Supabase의 고정된 콜백 주소로만 리다이렉트하고, 앱으로 돌아오는 마지막 단계는 Supabase(카카오/구글)나 `naver-oauth` 함수(네이버)가 처리하기 때문입니다.
 
 ### 카카오
 

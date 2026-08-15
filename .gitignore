@@ -1,3 +1,22 @@
 .DS_Store
 config.js
 research/
+
+# Capacitor native app tooling
+node_modules/
+www/
+*.keystore
+*.jks
+android/keystore.properties
+android/.gradle/
+android/app/build/
+android/local.properties
+ios/App/Pods/
+ios/App/build/
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/fastlane/report.xml
+ios/App/*.ipa
+ios/App/*.dSYM.zip
+*.mobileprovision
+*.p12
+vendor/bundle/

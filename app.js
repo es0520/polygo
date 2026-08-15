@@ -1,8 +1,12 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { Capacitor } from 'https://esm.sh/@capacitor/core@6';
+import { Browser } from 'https://esm.sh/@capacitor/browser@6';
+import { App as CapApp } from 'https://esm.sh/@capacitor/app@6';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, NAVER_CLIENT_ID } from './config.js';
 
+const NATIVE_AUTH_REDIRECT = 'polygo://auth-callback';
 const configured = SUPABASE_URL.startsWith('https://') && !SUPABASE_PUBLISHABLE_KEY.startsWith('YOUR_');
-const supabase = configured ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
+const supabase = configured ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, { auth: { flowType: 'pkce' } }) : null;
 const GREETINGS = { '스페인어': '¡Hola', '영어': 'Hello', '중국어': '你好' };
 function levelsFor(language) { return language === '중국어' ? ['HSK1','HSK2','HSK3','HSK4','HSK5','HSK6'] : ['A1','A2','B1','B2','C1','C2']; }
 const initialDecksByLevel = {
@@ -787,13 +791,19 @@ async function action(a, el) {
   else if (a === 'account') state.modal = 'account';
   else if (a === 'close-modal') state.modal = null;
   else if (a === 'auth-mode') state.authMode = state.authMode === 'login' ? 'signup' : 'login';
-  else if (a === 'oauth-google') { await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } }); return; }
+  else if (a === 'oauth-google') { await startOAuth('google'); return; }
   else if (a === 'link-google') {
+    if (Capacitor.isNativePlatform()) {
+      const { data, error } = await supabase.auth.linkIdentity({ provider: 'google', options: { redirectTo: NATIVE_AUTH_REDIRECT, skipBrowserRedirect: true } });
+      if (error) { alert('연동에 실패했어요: ' + error.message); return; }
+      if (data?.url) await Browser.open({ url: data.url });
+      return;
+    }
     const { error } = await supabase.auth.linkIdentity({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
     if (error) alert('연동에 실패했어요: ' + error.message);
     return;
   }
-  else if (a === 'oauth-kakao') { await supabase.auth.signInWithOAuth({ provider: 'kakao', options: { redirectTo: location.origin + location.pathname } }); return; }
+  else if (a === 'oauth-kakao') { await startOAuth('kakao'); return; }
   else if (a === 'oauth-naver') { startNaverLogin(); return; }
   else if (a === 'set-language') {
     const lang = el.dataset.lang;
@@ -1207,12 +1217,22 @@ async function handleSignedInUser(newUser) {
   }
   if (state.pendingShare) await claimSharedDeck(state.pendingShare);
 }
+async function startOAuth(provider) {
+  if (Capacitor.isNativePlatform()) {
+    const { data, error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: NATIVE_AUTH_REDIRECT, skipBrowserRedirect: true } });
+    if (error) { alert('로그인에 실패했어요: ' + error.message); return; }
+    if (data?.url) await Browser.open({ url: data.url });
+    return;
+  }
+  await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: location.origin + location.pathname } });
+}
 function startNaverLogin() {
   if (!NAVER_CLIENT_ID || NAVER_CLIENT_ID.startsWith('YOUR_')) { alert('네이버 로그인이 아직 설정되지 않았어요.'); return; }
-  const oauthState = crypto.randomUUID();
+  const oauthState = crypto.randomUUID() + (Capacitor.isNativePlatform() ? '.native' : '');
   sessionStorage.setItem('naver-oauth-state', oauthState);
   const redirectUri = SUPABASE_URL + '/functions/v1/naver-oauth';
   const authorizeUrl = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${encodeURIComponent(NAVER_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(oauthState)}`;
+  if (Capacitor.isNativePlatform()) { Browser.open({ url: authorizeUrl }); return; }
   location.href = authorizeUrl;
 }
 async function completeNaverLogin(params) {
@@ -1261,7 +1281,24 @@ async function init() {
       render();
     }
   });
+  if (Capacitor.isNativePlatform()) {
+    CapApp.addListener('appUrlOpen', async ({ url }) => {
+      if (!url.startsWith(NATIVE_AUTH_REDIRECT)) return;
+      await Browser.close();
+      const callbackParams = new URL(url).searchParams;
+      const authError = callbackParams.get('auth_error');
+      if (authError) { alert('로그인에 실패했어요: ' + decodeURIComponent(authError)); return; }
+      if (callbackParams.get('naver_token')) {
+        await completeNaverLogin(callbackParams);
+      } else if (callbackParams.get('code')) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(url);
+        if (error) { alert('로그인에 실패했어요: ' + error.message); return; }
+        if (data?.session) await handleSignedInUser(data.session.user);
+      }
+      render();
+    });
+  }
   render();
 }
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+if (!Capacitor.isNativePlatform() && 'serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
 init();

@@ -1,0 +1,8 @@
+{
+  "appId": "com.polygo.app",
+  "appName": "PolyGo",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}

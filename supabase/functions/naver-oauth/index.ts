@@ -5,22 +5,28 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // (3) Supabase Admin API로 매직링크 토큰을 발급해 앱으로 돌려보냅니다.
 // 앱(app.js)은 이 토큰으로 supabase.auth.verifyOtp를 호출해 정식 로그인 세션을 만듭니다.
 
-function redirectWithError(appOrigin: string, message: string) {
-  return Response.redirect(`${appOrigin}?auth_error=${encodeURIComponent(message)}`, 302);
+function redirectWithError(redirectBase: string, message: string) {
+  return Response.redirect(`${redirectBase}?auth_error=${encodeURIComponent(message)}`, 302);
 }
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   const appOrigin = Deno.env.get('APP_ORIGIN') || '';
+  // The native app can't register a dynamic redirect_uri with Naver, so the
+  // platform rides inside `state` (appended client-side, see app.js startNaverLogin)
+  // instead. `state` is always echoed back verbatim by Naver.
+  const state = url.searchParams.get('state') || '';
+  const isNative = state.endsWith('.native');
+  const nativeScheme = Deno.env.get('APP_NATIVE_SCHEME') || 'polygo://auth-callback';
+  const redirectBase = isNative ? nativeScheme : appOrigin;
 
   try {
-    if (!appOrigin) throw new Error('서버에 APP_ORIGIN이 설정되지 않았어요.');
+    if (!redirectBase) throw new Error('서버에 APP_ORIGIN이 설정되지 않았어요.');
 
     const oauthError = url.searchParams.get('error');
     if (oauthError) throw new Error('네이버 인증이 취소되었거나 실패했어요: ' + oauthError);
 
     const code = url.searchParams.get('code');
-    const state = url.searchParams.get('state') || '';
     if (!code) throw new Error('네이버에서 인증 코드를 받지 못했어요.');
 
     const clientId = Deno.env.get('NAVER_CLIENT_ID');
@@ -57,10 +63,10 @@ Deno.serve(async (req) => {
     const tokenHash = data?.properties?.hashed_token;
     if (!tokenHash) throw new Error('로그인 토큰 생성에 실패했어요.');
 
-    const redirectUrl = `${appOrigin}?naver_token=${encodeURIComponent(tokenHash)}&naver_email=${encodeURIComponent(email)}&naver_state=${encodeURIComponent(state)}`;
+    const redirectUrl = `${redirectBase}?naver_token=${encodeURIComponent(tokenHash)}&naver_email=${encodeURIComponent(email)}&naver_state=${encodeURIComponent(state)}`;
     return Response.redirect(redirectUrl, 302);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return appOrigin ? redirectWithError(appOrigin, message) : new Response(message, { status: 400 });
+    return redirectBase ? redirectWithError(redirectBase, message) : new Response(message, { status: 400 });
   }
 });

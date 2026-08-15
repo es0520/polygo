@@ -1,0 +1,81 @@
+name: Android Release
+
+# Manual only. Always produces a signed AAB artifact; optionally also
+# publishes it to the Play Console's internal testing track when
+# publish_to_play is checked (requires PLAY_SERVICE_ACCOUNT_JSON, and the
+# app must already have completed its first manual AAB upload in the Play
+# Console before API-based uploads are accepted for a brand-new app).
+on:
+  workflow_dispatch:
+    inputs:
+      publish_to_play:
+        description: 'Upload to Play Console internal testing track'
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Generate app configuration
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+        run: bash scripts/generate-config.sh
+
+      - name: Build web assets and sync into Android project
+        run: |
+          npm run sync:www
+          npx cap sync android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Decode signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
+
+      - name: Write keystore.properties
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cat > android/keystore.properties <<EOF
+          storeFile=release.keystore
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+
+      - name: Build signed release AAB
+        working-directory: android
+        run: ./gradlew bundleRelease
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: polygo-release.aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Upload to Play Console (internal testing track)
+        if: ${{ inputs.publish_to_play }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.polygo.app
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
