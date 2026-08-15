@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { Capacitor } from 'https://esm.sh/@capacitor/core@6';
 import { Browser } from 'https://esm.sh/@capacitor/browser@6';
 import { App as CapApp } from 'https://esm.sh/@capacitor/app@6';
+import { SpeechRecognition } from 'https://esm.sh/@capacitor-community/speech-recognition@6.0.1';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, NAVER_CLIENT_ID } from './config.js';
 
 const NATIVE_AUTH_REDIRECT = 'polygo://auth-callback';
@@ -560,6 +561,38 @@ const deck = () => decks.find(d => d.id === state.deckId) || modeDecks()[0] || d
 const escape = (text) => String(text).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
 const normalise = v => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ\s.,!?¿¡]/g,'');
 const normalisePinyin = v => v.toLowerCase().trim().replace(/\s+/g,' ');
+// Accepts different Korean politeness levels of the same answer as equivalent
+// (e.g. 고맙다/고마워요/고마워/고맙습니다) - only used as a fallback for the Korean
+// meaning field, after exact match + explicit synonyms have already failed.
+// NOTE: must run on the RAW string, not normalise()'s output - NFD decomposes
+// Hangul syllables into individual jamo, which would break the endsWith() checks below.
+// Deliberately no bare '요' here - it's too short/common as an ordinary noun ending
+// (e.g. 필요) to safely strip on its own; the multi-character politeness endings below
+// (어요/아요/여요/이에요/예요/네요) already cover the informal-polite conjugation cases.
+const KOREAN_ENDINGS = ['습니다','ㅂ니다','입니다','이에요','예요','습니까','ㅂ니까','네요','어요','아요','여요','다'];
+const KOREAN_B_IRREGULAR = {
+  '고맙다': ['고마워요','고마워','고맙습니다'], '어렵다': ['어려워요','어려워','어렵습니다'],
+  '쉽다': ['쉬워요','쉬워','쉽습니다'], '춥다': ['추워요','추워','춥습니다'],
+  '덥다': ['더워요','더워','덥습니다'], '맵다': ['매워요','매워','맵습니다'],
+  '가깝다': ['가까워요','가까워','가깝습니다'], '반갑다': ['반가워요','반가워','반갑습니다'],
+  '무겁다': ['무거워요','무거워','무겁습니다'], '아름답다': ['아름다워요','아름다워','아름답습니다'],
+  '귀엽다': ['귀여워요','귀여워','귀엽습니다'], '가볍다': ['가벼워요','가벼워','가볍습니다'],
+  '즐겁다': ['즐거워요','즐거워','즐겁습니다'], '두렵다': ['두려워요','두려워','두렵습니다'],
+};
+function koreanStems(text) {
+  const t = (text||'').trim().replace(/[.!?~\s]+$/g,'');
+  const stems = new Set([t]);
+  KOREAN_ENDINGS.forEach(end => { if (t.length > end.length && t.endsWith(end)) stems.add(t.slice(0, -end.length)); });
+  return stems;
+}
+function koreanMeaningMatches(expected, typed) {
+  const a = [...koreanStems(expected)], b = koreanStems(typed);
+  if (a.some(s => b.has(s))) return true;
+  return Object.entries(KOREAN_B_IRREGULAR).some(([dict, forms]) => {
+    const inGroup = v => { const t=(v||'').trim(); return t===dict || forms.includes(t) || koreanStems(t).has(dict.slice(0,-1)); };
+    return inGroup(expected) && inGroup(typed);
+  });
+}
 const shuffleArr = arr => [...arr].sort(() => .5 - Math.random());
 const langFlag = l => l === '영어' ? '🇬🇧' : l === '중국어' ? '🇨🇳' : '🇪🇸';
 function icon(name) { return `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#${name}" /></svg>`; }
@@ -626,7 +659,7 @@ function quizWords() {
 }
 function quizTypeTabs() {
   if (state.language !== '중국어') return [['choice','객관식'],['spell','뜻 입력'],['write','단어 쓰기'],['voice','말하기']];
-  return [['choice','한자→한국어'],['spell','한자 입력'],['pinyin','한자→병음'],['hanzi-write','한자 쓰기',true],['ko-char','한국어→한자'],['voice','말하기']];
+  return [['choice','한자→한국어'],['spell','한자 입력'],['pinyin','한자→병음'],['hanzi-write','한자 쓰기'],['ko-char','한국어→한자'],['voice','말하기']];
 }
 function quizConfig(type, word) {
   const meaningLabel = state.language === '중국어' ? '한자의 뜻은?' : `다음 ${state.language}의 뜻은?`;
@@ -635,6 +668,7 @@ function quizConfig(type, word) {
     spell: { field: 'back', prompt: word.front, label: meaningLabel },
     write: { field: 'front', prompt: word.back, label: `한국어 뜻을 보고 ${state.language}로 입력하세요` },
     pinyin: { field: 'pinyin', prompt: word.front, label: '한자를 보고 병음을 입력하세요' },
+    'hanzi-write': { field: 'front', prompt: word.back, label: '한국어 뜻을 보고 한자를 입력하세요' },
     'ko-char': { field: 'front', prompt: word.back, label: '한국어 뜻에 맞는 한자를 고르세요' },
     voice: { field: 'front', prompt: word.back, label: `다음 뜻을 ${state.language}로 말해 보세요` }
   };
@@ -663,7 +697,7 @@ function quiz() {
           ? `<div class="choices">${buildOptions(word,cfg.field).map(o=>`<button data-answer="${escape(o)}">${escape(o)}</button>`).join('')}</div>`
           : type === 'voice'
             ? `<button class="voice-btn" data-action="voice">🎙 말하기 시작</button><p id="voice-result" class="hint"></p>`
-            : `<form id="spell-form"><input autocomplete="off" placeholder="${cfg.field==='pinyin'?'성조까지 정확히 입력 (예: nǐ hǎo)':cfg.field==='front'?`${state.language}로 입력하세요`:'한국어 뜻을 입력하세요'}" /><button class="primary">확인</button></form>`
+            : `<form id="spell-form"><input autocomplete="off" placeholder="${cfg.field==='pinyin'?'성조까지 정확히 입력 (예: nǐ hǎo)':cfg.field==='front'?(state.language==='중국어'?'한자로 입력하세요':`${state.language}로 입력하세요`):'한국어 뜻을 입력하세요'}" /><button class="primary">확인</button></form>`
       }</div>`;
   return `${languagePill()}${state.quizSource==='mistakes'?'<p class="intro">오답 복습 퀴즈</p>':deckSelectBtn}<div class="quiz-types">${quizTypeTabs().map(([v,label,disabled])=>`<button class="${type===v?'active':''} ${disabled?'disabled':''}" data-quiz="${v}" ${disabled?'data-disabled="1"':''}>${label}${disabled?' <small>준비 중</small>':''}</button>`).join('')}</div>${body}`;
 }
@@ -707,7 +741,8 @@ function levelTestOptions(word, language) {
 }
 function checkLevelTestAnswer(word, value) {
   const accepted = [word.back, ...(word.synonyms||'').split(',').map(s=>s.trim()).filter(Boolean)];
-  return accepted.some(v => v && normalise(v) === normalise(value||''));
+  if (accepted.some(v => v && normalise(v) === normalise(value||''))) return true;
+  return accepted.some(v => v && koreanMeaningMatches(v, value||''));
 }
 function advanceLevelTest(value) {
   const t = state.levelTest;
@@ -982,7 +1017,8 @@ async function answer(value) {
   const expected = word[cfg.field];
   const accepted = [expected, ...(cfg.field==='back' ? (word.synonyms||'').split(',').map(s=>s.trim()).filter(Boolean) : [])];
   const cmp = cfg.field === 'pinyin' ? normalisePinyin : normalise;
-  const correct = accepted.some(v => v && cmp(v) === cmp(value));
+  let correct = accepted.some(v => v && cmp(v) === cmp(value));
+  if (!correct && cfg.field === 'back') correct = accepted.some(v => v && koreanMeaningMatches(v, value));
   state.answered = { correct, value };
   render();
 }
@@ -1217,21 +1253,51 @@ async function askAI(e){
 }
 let recognizing = false;
 async function listenForAnswer() {
-  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const result = $('#voice-result');
-  if (!Recognition) { const msg='이 브라우저는 음성 인식을 지원하지 않아요. Safari 최신 버전 또는 Chrome에서 시도해 주세요.'; if(result) result.textContent=msg; else alert(msg); return; }
+  const lang = state.language==='영어' ? 'en-US' : state.language==='중국어' ? 'zh-CN' : 'es-ES';
   if (recognizing) return;
+  // Native apps use the device's real speech recognizer (@capacitor-community/speech-recognition) -
+  // the browser Web Speech API this used to rely on doesn't exist inside Capacitor's WKWebView on iOS
+  // at all, which is why voice quizzing never worked in the native app.
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { available } = await SpeechRecognition.available();
+      if (!available) { const msg='이 기기는 음성 인식을 지원하지 않아요.'; if(result) result.textContent=msg; else alert(msg); return; }
+      const perm = await SpeechRecognition.requestPermissions();
+      if (perm.speechRecognition !== 'granted' || perm.microphone !== 'granted') {
+        const msg='마이크/음성 인식 권한이 필요해요. 설정 앱에서 PolyGo의 권한을 허용해 주세요.';
+        if(result) result.textContent=msg; else alert(msg);
+        return;
+      }
+      recognizing = true;
+      if (result) result.textContent = '듣고 있어요…';
+      const { matches } = await SpeechRecognition.start({ language: lang, maxResults: 1, partialResults: false, popup: false });
+      recognizing = false;
+      const said = matches && matches[0];
+      if (!said) { const msg='음성이 감지되지 않았어요. 다시 시도해 주세요.'; if(result) result.textContent=msg; else alert(msg); return; }
+      if (result) result.textContent = '인식한 답: ' + said;
+      answer(said);
+    } catch (err) {
+      recognizing = false;
+      const msg = '음성 인식 오류: ' + (err?.message || String(err));
+      if (result) result.textContent = msg; else alert(msg);
+    }
+    return;
+  }
+  // Web/PWA fallback - desktop Chrome/Edge support this; most mobile browsers (including iOS Safari) don't.
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) { const msg='이 브라우저는 음성 인식을 지원하지 않아요. Chrome 최신 버전에서 시도해 주세요.'; if(result) result.textContent=msg; else alert(msg); return; }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     stream.getTracks().forEach(t => t.stop());
   } catch { if(result) result.textContent='마이크 권한이 필요해요. 브라우저 설정에서 허용해 주세요.'; return; }
   const r = new Recognition();
-  r.lang = state.language==='영어' ? 'en-US' : state.language==='중국어' ? 'zh-CN' : 'es-ES';
+  r.lang = lang;
   r.interimResults = false;
   recognizing = true;
   r.onresult = e => { const said = e.results[0][0].transcript; if(result) result.textContent='인식한 답: '+said; answer(said); };
   r.onerror = e => {
-    const detail = e.error==='not-allowed' ? ' (마이크 권한이 거부됐어요. 아이폰 설정 > Safari > 마이크에서 허용해 주세요.)' : e.error==='no-speech' ? ' (음성이 감지되지 않았어요. 다시 시도해 주세요.)' : e.error==='aborted' ? ' (인식이 중단됐어요. 다시 눌러서 시도해 주세요.)' : e.error==='network' ? ' (네트워크 문제로 인식하지 못했어요.)' : '';
+    const detail = e.error==='not-allowed' ? ' (마이크 권한이 거부됐어요.)' : e.error==='no-speech' ? ' (음성이 감지되지 않았어요. 다시 시도해 주세요.)' : e.error==='aborted' ? ' (인식이 중단됐어요. 다시 눌러서 시도해 주세요.)' : e.error==='network' ? ' (네트워크 문제로 인식하지 못했어요.)' : '';
     const msg = '음성 인식 오류: ' + (e.error||'알수없음') + detail;
     if (result) result.textContent = msg; else alert(msg);
   };
