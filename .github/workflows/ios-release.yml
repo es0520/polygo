@@ -20,10 +20,18 @@ on:
 
 jobs:
   ios:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        # Apple now requires builds submitted to App Store Connect to use the iOS 26 SDK
+        # (Xcode 26+) - pin explicitly instead of trusting whatever xcode-select defaults
+        # to on the runner image, which can lag behind.
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
       - uses: actions/setup-node@v4
         with:
