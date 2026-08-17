@@ -30,7 +30,10 @@ jobs:
           node-version: 20
 
       - name: Install npm dependencies
-        run: npm ci
+        # --cache points at a fresh, run-scoped directory instead of the macOS runner's
+        # pre-seeded ~/.npm cache, which occasionally throws EEXIST on its cacache tmp
+        # files (a known npm/GitHub Actions macOS runner flake, not a project issue).
+        run: npm ci --cache ${{ runner.temp }}/npm-cache
 
       - name: Generate app configuration
         env:
