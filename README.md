@@ -65,7 +65,7 @@ npm run cap:sync                 # www/에 웹 앱을 스테이징하고 android
 1. Apple Developer Program에 가입합니다 ($99/년).
 2. App Store Connect에서 API 키를 만들고(Users and Access → Keys), `.p8` 파일을 한 번 받아둡니다.
 3. fastlane match가 인증서를 암호화해 저장할 **비공개 git 저장소**를 하나 만듭니다.
-4. GitHub 저장소 시크릿에 추가: `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_BASE64`(`.p8` 내용), `MATCH_GIT_URL`, `MATCH_PASSWORD`(직접 정하는 암호화 비밀번호), `APPLE_TEAM_ID`.
+4. GitHub 저장소 시크릿에 추가: `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_BASE64`(`.p8` 내용), `MATCH_GIT_URL`, `MATCH_PASSWORD`(직접 정하는 암호화 비밀번호). (Team ID는 `ios/App/fastlane/Appfile`/`Matchfile`에 이미 고정돼 있어서 시크릿으로 안 넣어도 됩니다.)
 5. `ios-release.yml`을 `lane: bootstrap_match`로 한 번 수동 실행해 인증서/프로비저닝 프로파일을 최초 생성합니다.
 6. 이후로는 `lane: beta`로 실행하면 서명된 IPA를 빌드해 TestFlight에 올립니다. 실제 기기(아이폰)로 TestFlight에서 설치해 테스트하고, 준비되면 App Store Connect에서 직접 심사 제출합니다.
 
