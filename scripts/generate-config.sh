@@ -17,11 +17,15 @@ if [ -z "${SUPABASE_PUBLISHABLE_KEY:-}" ]; then
 fi
 
 cp config.example.js config.js
-sed -i "s|YOUR_SUPABASE_URL|$SUPABASE_URL|" config.js
-sed -i "s|YOUR_SUPABASE_PUBLISHABLE_KEY|$SUPABASE_PUBLISHABLE_KEY|" config.js
+# -i.bak (suffix attached, no space) is the one sed -i form that both GNU sed (Linux runners)
+# and BSD sed (macOS runners) accept identically - a bare `sed -i "..."` works on Linux but
+# fails on macOS, which requires an extension argument after -i.
+sed -i.bak "s|YOUR_SUPABASE_URL|$SUPABASE_URL|" config.js
+sed -i.bak "s|YOUR_SUPABASE_PUBLISHABLE_KEY|$SUPABASE_PUBLISHABLE_KEY|" config.js
 if [ -n "${NAVER_CLIENT_ID:-}" ]; then
-  sed -i "s|YOUR_NAVER_CLIENT_ID|$NAVER_CLIENT_ID|" config.js
+  sed -i.bak "s|YOUR_NAVER_CLIENT_ID|$NAVER_CLIENT_ID|" config.js
 else
   echo "::warning::NAVER_CLIENT_ID secret not set yet, Naver login button will show a setup notice until you add it."
 fi
+rm -f config.js.bak
 echo "Configured SUPABASE_URL host: $(echo "$SUPABASE_URL" | sed -E 's#https://([^/]+).*#\1#')"
