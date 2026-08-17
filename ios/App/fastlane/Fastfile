@@ -18,6 +18,17 @@ platform :ios do
   desc "Build a signed release IPA and upload it to TestFlight."
   lane :beta do
     match(type: "appstore", api_key: connect_api_key, readonly: true)
+    # Capacitor's generated Xcode project defaults to automatic signing with no team
+    # selected (nobody's ever opened it in local Xcode to pick one) - point it at the
+    # team + profile match just fetched, or the headless CI archive has nothing to sign with.
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "App.xcodeproj",
+      team_id: ENV["APPLE_TEAM_ID"],
+      code_sign_identity: "iPhone Distribution",
+      bundle_identifier: "com.polygo.app",
+      profile_name: ENV["sigh_com.polygo.app_appstore_profile-name"],
+    )
     increment_build_number(
       build_number: ENV["GITHUB_RUN_NUMBER"] || Time.now.to_i.to_s,
       xcodeproj: "App.xcodeproj",
