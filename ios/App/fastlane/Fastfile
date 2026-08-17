@@ -12,11 +12,16 @@ platform :ios do
 
   desc "One-time (or cert-rotation) bootstrap of match's encrypted certs/profiles. Run manually via workflow_dispatch."
   lane :bootstrap_match do
+    # Creates a temporary, unlocked CI keychain for match to import certs into. Without
+    # this, macOS prompts for interactive "always allow keychain access" confirmation that
+    # nothing can answer in CI, which hangs the job indefinitely instead of failing.
+    setup_ci if ENV['CI']
     match(type: "appstore", api_key: connect_api_key, readonly: false)
   end
 
   desc "Build a signed release IPA and upload it to TestFlight."
   lane :beta do
+    setup_ci if ENV['CI']
     match(type: "appstore", api_key: connect_api_key, readonly: true)
     # Capacitor's generated Xcode project defaults to automatic signing with no team
     # selected (nobody's ever opened it in local Xcode to pick one) - point it at the
