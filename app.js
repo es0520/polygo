@@ -561,6 +561,10 @@ const deck = () => decks.find(d => d.id === state.deckId) || modeDecks()[0] || d
 const escape = (text) => String(text).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
 const normalise = v => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ\s.,!?¿¡]/g,'');
 const normalisePinyin = v => v.toLowerCase().trim().replace(/\s+/g,' ');
+// Many deck entries bake a disambiguating note into the Korean meaning itself
+// (e.g. "마리아(이름)", "백(100)") - the note isn't part of the actual answer,
+// so also accept the meaning with any (...) annotation stripped out.
+const stripParenAnnotation = v => String(v||'').replace(/\([^)]*\)/g, '').replace(/\s+/g,' ').trim();
 // Accepts different Korean politeness levels of the same answer as equivalent
 // (e.g. 고맙다/고마워요/고마워/고맙습니다) - only used as a fallback for the Korean
 // meaning field, after exact match + explicit synonyms have already failed.
@@ -592,6 +596,17 @@ function koreanMeaningMatches(expected, typed) {
     const inGroup = v => { const t=(v||'').trim(); return t===dict || forms.includes(t) || koreanStems(t).has(dict.slice(0,-1)); };
     return inGroup(expected) && inGroup(typed);
   });
+}
+function stripMarkdown(text) {
+  return String(text||'')
+    .replace(/```[\s\S]*?```/g, m => m.replace(/```/g,'').trim())
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/^>\s?/gm, '')
+    .replace(/^[-*]\s+/gm, '')
+    .trim();
 }
 const shuffleArr = arr => [...arr].sort(() => .5 - Math.random());
 const langFlag = l => l === '영어' ? '🇬🇧' : l === '중국어' ? '🇨🇳' : '🇪🇸';
@@ -740,15 +755,23 @@ function levelTestOptions(word, language) {
   return shuffleArr([word.back, ...distractors]);
 }
 function checkLevelTestAnswer(word, value) {
-  const accepted = [word.back, ...(word.synonyms||'').split(',').map(s=>s.trim()).filter(Boolean)];
+  const base = [word.back, ...(word.synonyms||'').split(',').map(s=>s.trim()).filter(Boolean)];
+  const accepted = [...base, ...base.map(stripParenAnnotation)];
   if (accepted.some(v => v && normalise(v) === normalise(value||''))) return true;
   return accepted.some(v => v && koreanMeaningMatches(v, value||''));
 }
 function advanceLevelTest(value) {
   const t = state.levelTest;
   const q = t.questions[t.index];
-  if (checkLevelTestAnswer(q.word, value)) t.correct++;
+  const correct = checkLevelTestAnswer(q.word, value);
+  if (correct) t.correct++;
+  t.answered = { correct, value };
+  render();
+}
+function nextLevelTestQuestion() {
+  const t = state.levelTest;
   t.index++;
+  t.answered = null;
   render();
 }
 function levelTestScreen() {
@@ -762,6 +785,10 @@ function levelTestScreen() {
   }
   const q = t.questions[t.index];
   const word = q.word;
+  const a = t.answered;
+  if (a) {
+    return `<div class="quiz-card ${a.correct?'flash-correct':'flash-incorrect'}"><span class="card-label">${a.correct?'정답이에요! 🎉':'아쉬워요'}</span><strong>${escape(word.front)} · ${escape(word.back)}</strong>${a.correct?'':`<em>내가 답한 것: ${escape(a.value)}</em>`}<button class="primary" data-action="level-test-next">다음 ${icon('chev')}</button></div>`;
+  }
   const body = q.type === 'spell'
     ? `<form id="level-test-form"><input autocomplete="off" placeholder="한국어 뜻을 입력하세요" /><button class="primary">확인</button></form>`
     : `<div class="choices">${levelTestOptions(word, t.language).map(o=>`<button data-action="level-test-answer" data-answer="${escape(o)}">${escape(o)}</button>`).join('')}</div>`;
@@ -804,7 +831,7 @@ function modal(){
     : state.modal === 'mode'
     ? `<h2>학습 모드</h2><p class="modal-copy">코스 학습은 레벨에 맞춰 준비된 단어장으로, 내 단어장은 직접 만든 단어장으로 학습해요.</p><button class="choice-line ${state.deckMode==='course'?'selected':''}" data-action="set-mode" data-value="course">📘 코스 학습 모드 ${state.deckMode==='course'?'<b>✓</b>':''}<small>레벨별 단어장으로 순서대로 학습</small></button><button class="choice-line ${state.deckMode==='custom'?'selected':''}" data-action="set-mode" data-value="custom">📓 내 단어장 모드 ${state.deckMode==='custom'?'<b>✓</b>':''}<small>내가 직접 만든 단어장으로 학습</small></button>`
     : state.modal === 'quiz-decks'
-    ? `<h2>퀴즈에 포함할 단어장</h2><p class="modal-copy">선택한 단어장들의 단어를 섞어서 퀴즈를 봐요. 최소 1개는 선택돼 있어야 해요.</p>${modeDecks().map(d=>`<button class="choice-line ${state.quizDeckIds.includes(d.id)?'selected':''}" data-action="toggle-quiz-deck" data-deck="${d.id}">${d.icon} ${escape(d.name)} <small>${d.words.length}개</small> ${state.quizDeckIds.includes(d.id)?'<b>✓</b>':''}</button>`).join('')}`
+    ? `<h2>퀴즈에 포함할 단어장</h2><p class="modal-copy">선택한 단어장들의 단어를 섞어서 퀴즈를 봐요. 최소 1개는 선택돼 있어야 해요.</p>${modeDecks().map(d=>`<button class="choice-line ${state.quizDeckIds.includes(d.id)?'selected':''}" data-action="toggle-quiz-deck" data-deck="${d.id}">${d.icon} ${escape(d.name)} <small>${d.words.length}개</small> <b>✓</b></button>`).join('')}`
     : (() => {
         const providers = (state.user?.identities||[]).map(i=>i.provider);
         const googleBtn = providers.includes('google')
@@ -955,11 +982,13 @@ async function action(a, el) {
   else if (a === 'onboard-skip' || a === 'onboard-next') { await advanceOnboarding(); return; }
   else if (a === 'start-level-test') {
     const lang = el.dataset.lang || state.language;
-    state.levelTest = { language: lang, questions: buildLevelTestQuestions(lang), index: 0, correct: 0 };
+    state.levelTest = { language: lang, questions: buildLevelTestQuestions(lang), index: 0, correct: 0, answered: null };
     state.modal = null;
+    state.drawer = false;
     state.screen = 'level-test';
   }
   else if (a === 'level-test-answer') { advanceLevelTest(el.dataset.answer); return; }
+  else if (a === 'level-test-next') { nextLevelTestQuestion(); return; }
   else if (a === 'apply-level-test') {
     const t = state.levelTest;
     const level = el.dataset.value;
@@ -1015,7 +1044,8 @@ async function answer(value) {
   const word = list[state.quizIndex % list.length];
   const cfg = quizConfig(state.quizType, word);
   const expected = word[cfg.field];
-  const accepted = [expected, ...(cfg.field==='back' ? (word.synonyms||'').split(',').map(s=>s.trim()).filter(Boolean) : [])];
+  const base = [expected, ...(cfg.field==='back' ? (word.synonyms||'').split(',').map(s=>s.trim()).filter(Boolean) : [])];
+  const accepted = cfg.field === 'back' ? [...base, ...base.map(stripParenAnnotation)] : base;
   const cmp = cfg.field === 'pinyin' ? normalisePinyin : normalise;
   let correct = accepted.some(v => v && cmp(v) === cmp(value));
   if (!correct && cfg.field === 'back') correct = accepted.some(v => v && koreanMeaningMatches(v, value));
@@ -1248,7 +1278,7 @@ async function askAI(e){
   const { data, error } = await supabase.functions.invoke('ask-ai', { body: { messages: state.aiMessages.map(m=>({role:m.role,content:m.content})), language: state.language } });
   state.aiBusy = false;
   if (error || data?.error) state.aiMessages.push({ role: 'assistant', content: '죄송해요, 답변을 가져오지 못했어요: ' + (data?.error || error?.message || '알 수 없는 오류') });
-  else state.aiMessages.push({ role: 'assistant', content: data.reply || '' });
+  else state.aiMessages.push({ role: 'assistant', content: stripMarkdown(data.reply || '') });
   render();
 }
 let recognizing = false;
@@ -1264,7 +1294,7 @@ async function listenForAnswer() {
       const { available } = await SpeechRecognition.available();
       if (!available) { const msg='이 기기는 음성 인식을 지원하지 않아요.'; if(result) result.textContent=msg; else alert(msg); return; }
       const perm = await SpeechRecognition.requestPermissions();
-      if (perm.speechRecognition !== 'granted' || perm.microphone !== 'granted') {
+      if (perm.speechRecognition !== 'granted') {
         const msg='마이크/음성 인식 권한이 필요해요. 설정 앱에서 PolyGo의 권한을 허용해 주세요.';
         if(result) result.textContent=msg; else alert(msg);
         return;
@@ -1316,14 +1346,26 @@ async function handleSignedInUser(newUser) {
   }
   if (state.pendingShare) await claimSharedDeck(state.pendingShare);
 }
+let oauthBusy = false;
 async function startOAuth(provider) {
-  if (Capacitor.isNativePlatform()) {
-    const { data, error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: NATIVE_AUTH_REDIRECT, skipBrowserRedirect: true } });
-    if (error) { alert('로그인에 실패했어요: ' + error.message); return; }
-    if (data?.url) await Browser.open({ url: data.url });
-    return;
+  // Guards against a double-tap starting two PKCE flows before the native browser
+  // sheet finishes opening: the second signInWithOAuth call overwrites the first's
+  // stored code verifier, so whichever browser session the user actually completes
+  // ends up mismatched - Supabase then rejects the callback with "invalid flow
+  // state, no valid state found" even though the login itself was never wrong.
+  if (oauthBusy) return;
+  oauthBusy = true;
+  try {
+    if (Capacitor.isNativePlatform()) {
+      const { data, error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: NATIVE_AUTH_REDIRECT, skipBrowserRedirect: true } });
+      if (error) { alert('로그인에 실패했어요: ' + error.message); return; }
+      if (data?.url) await Browser.open({ url: data.url });
+      return;
+    }
+    await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: location.origin + location.pathname } });
+  } finally {
+    oauthBusy = false;
   }
-  await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: location.origin + location.pathname } });
 }
 function startNaverLogin() {
   if (!NAVER_CLIENT_ID || NAVER_CLIENT_ID.startsWith('YOUR_')) { alert('네이버 로그인이 아직 설정되지 않았어요.'); return; }
