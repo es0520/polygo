@@ -549,15 +549,16 @@ const state = {
   quizType: 'choice', quizSource: 'deck', quizIndex: 0, answered: null, quizDeckIds: [],
   mistakes: [], dark: localStorage.getItem('lingo-dark') === 'true', modal: null,
   user: null, authMode: 'login', pendingShare: null,
-  ocrCandidates: [], ocrBusy: false, aiMessages: [], aiBusy: false, onboard: null, userLevels: {},
-  deckMode: localStorage.getItem('lingo-deck-mode') || 'course',
+  ocrCandidates: [], ocrBusy: false, aiMessages: [], aiBusy: false, aiContext: null, onboard: null, userLevels: {},
   levelTest: null
 };
 let decks = [];
 
 const $ = (s) => document.querySelector(s);
-const modeDecks = () => decks.filter(d => d.language === state.language && d.source === state.deckMode);
-const deck = () => decks.find(d => d.id === state.deckId) || modeDecks()[0] || decks.find(d => d.language === state.language) || decks[0] || { id: null, name: '', icon: '📚', words: [] };
+const langDecks = () => decks.filter(d => d.language === state.language);
+const courseDecks = () => langDecks().filter(d => d.source === 'course');
+const customDecks = () => langDecks().filter(d => d.source === 'custom');
+const deck = () => decks.find(d => d.id === state.deckId) || langDecks()[0] || decks[0] || { id: null, name: '', icon: '📚', words: [] };
 const escape = (text) => String(text).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
 const normalise = v => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ\s.,!?¿¡]/g,'');
 const normalisePinyin = v => v.toLowerCase().trim().replace(/\s+/g,' ');
@@ -629,23 +630,21 @@ function auth(){const signup=state.authMode==='signup';return `<div class="auth-
 function nicknameSetup(){return `<div class="auth-card"><div class="auth-mark">P</div><h2>닉네임을 알려주세요</h2><p>다른 사람에게는 보이지 않고, 앱 안에서 인사할 때만 사용해요.</p><form id="nickname-form"><label>닉네임<input type="text" name="nickname" required minlength="1" maxlength="30" placeholder="다른 사람에게 보여질 이름" autofocus /></label><button class="primary" type="submit">시작하기</button></form></div>`}
 function languagePill(){return `<button class="language-pill" data-action="language">${langFlag(state.language)} ${state.language} ${icon('chev')}</button>`;}
 function langHeroArt(l){ return l==='영어'?'Hello!':l==='중국어'?'你好!':'¡Hola!'; }
-function modePill() {
-  const isCourse = state.deckMode === 'course';
-  return `<button class="language-pill" data-action="mode-modal">${isCourse?'📘 코스 학습':'📓 내 단어장'} ${icon('chev')}</button>`;
+function deckRow(dk){
+  return `<div class="deck-item"><button class="deck-row" data-deck="${dk.id}"><span class="deck-icon">${dk.icon}</span><span><b>${escape(dk.name)}</b><small>${dk.words.length}개의 단어</small></span>${icon('chev')}</button><button class="deck-row-delete" data-action="delete-deck" data-deck="${dk.id}" data-name="${escape(dk.name)}">🗑</button></div>`;
 }
 function home() {
-  const allLangDecks = modeDecks();
-  const langDecks = allLangDecks.filter(d=>!d.completed);
-  const doneCount = allLangDecks.length - langDecks.length;
+  const course = courseDecks().filter(d=>!d.completed);
+  const custom = customDecks().filter(d=>!d.completed);
+  const doneCount = langDecks().filter(d=>d.completed).length;
   const d = deck();
-  const isCourse = state.deckMode === 'course';
-  const emptyHint = isCourse
-    ? `<div class="empty"><div>📘</div><h2>아직 코스 단어장이 없어요</h2><p>학습 레벨을 고르면 그 레벨에 맞는 단어장이 생겨요.</p><button class="primary" data-action="level-modal">레벨 고르기</button></div>`
-    : `<div class="empty"><div>＋</div><h2>아직 내 단어장이 없어요</h2><p>단어를 직접 추가해서 나만의 단어장을 만들어 보세요.</p><button class="primary" data-screen="create">단어장 만들기</button></div>`;
-  return `${languagePill()}${modePill()}${langDecks.length?`<section class="hero"><div><span>LAST STUDIED</span><h2>${escape(d.name||'단어장 없음')}</h2><p>${(d.words||[]).length}개의 단어</p></div><div class="hero-art">${langHeroArt(state.language)}<small>✦</small></div></section><div class="section-title"><h2>${isCourse?'코스 단어장':'내 단어장'}</h2>${isCourse?'':'<button data-screen="create">+ 만들기</button>'}</div><div class="deck-list">${langDecks.map(dk=>`<div class="deck-item"><button class="deck-row" data-deck="${dk.id}"><span class="deck-icon">${dk.icon}</span><span><b>${escape(dk.name)}</b><small>${dk.words.length}개의 단어</small></span>${icon('chev')}</button><button class="deck-row-delete" data-action="delete-deck" data-deck="${dk.id}" data-name="${escape(dk.name)}">🗑</button></div>`).join('')}</div>`:emptyHint}${doneCount?`<button class="link-more" data-screen="completed">✓ 완료한 단어장 (${doneCount}개) 보기</button>`:''}<div class="section-title"><h2>학습 도구</h2></div><div class="tools"><button data-screen="quiz"><span>✎</span><b>퀴즈 풀기</b><small>기억을 확인해요</small></button><button data-screen="mistakes"><span>◉</span><b>오답 노트</b><small>${state.mistakes.length}개 저장됨</small></button></div>`;
+  const heroSection = (course.length || custom.length) ? `<section class="hero"><div><span>LAST STUDIED</span><h2>${escape(d.name||'단어장 없음')}</h2><p>${(d.words||[]).length}개의 단어</p></div><div class="hero-art">${langHeroArt(state.language)}<small>✦</small></div></section>` : '';
+  const courseSection = `<div class="section-title"><h2>📘 코스 단어장</h2><button data-action="level-modal">${course.length?'+ 레벨 추가':'레벨 고르기'}</button></div>${course.length?`<div class="deck-list">${course.map(deckRow).join('')}</div>`:`<p class="hint">학습 레벨을 고르면 그 레벨에 맞는 단어장이 생겨요.</p>`}`;
+  const customSection = `<div class="section-title"><h2>📓 내 단어장</h2><button data-screen="create">+ 만들기</button></div>${custom.length?`<div class="deck-list">${custom.map(deckRow).join('')}</div>`:`<p class="hint">단어를 직접 추가해서 나만의 단어장을 만들어 보세요.</p>`}`;
+  return `${languagePill()}${heroSection}${courseSection}${customSection}${doneCount?`<button class="link-more" data-screen="completed">✓ 완료한 단어장 (${doneCount}개) 보기</button>`:''}<div class="section-title"><h2>학습 도구</h2></div><div class="tools"><button data-screen="quiz"><span>✎</span><b>퀴즈 풀기</b><small>기억을 확인해요</small></button><button data-screen="mistakes"><span>◉</span><b>오답 노트</b><small>${state.mistakes.length}개 저장됨</small></button></div>`;
 }
 function completedDecksScreen() {
-  const doneDecks = decks.filter(d=>d.language===state.language && d.source===state.deckMode && d.completed);
+  const doneDecks = decks.filter(d=>d.language===state.language && d.completed);
   if (!doneDecks.length) return `${languagePill()}<div class="empty"><div>✓</div><h2>완료한 단어장이 없어요</h2><p>학습을 마친 단어장에서 "학습 종료"를 누르면 여기에 모여요.</p></div>`;
   return `${languagePill()}<p class="intro">학습을 마친 단어장이에요. 눌러서 다시 볼 수 있어요.</p><div class="deck-list">${doneDecks.map(dk=>`<button class="deck-row" data-deck="${dk.id}"><span class="deck-icon">${dk.icon}</span><span><b>${escape(dk.name)}</b><small>${dk.words.length}개의 단어</small></span>${icon('chev')}</button>`).join('')}</div>`;
 }
@@ -657,10 +656,10 @@ function study() {
   if (state.studyDone) return `${languagePill()}<div class="empty"><div>✓</div><h2>단어장을 다 외웠어요!</h2><p>${escape(d.name)} 학습을 완료했어요.</p><button class="primary" data-action="restart-round">다시 학습하기</button><div style="margin-top:10px">${completeBtn}</div></div>`;
   const word = state.round[state.roundIndex];
   const extra = [word.pinyin, word.example, word.example_ko].filter(Boolean).join(' · ');
-  return `${languagePill()}<div class="study-meta"><span>${state.roundIndex + 1} / ${state.round.length}</span><div style="display:flex;gap:6px">${completeBtn}<button class="toggle" data-action="share-deck">🔗 공유</button><button class="toggle ${state.shuffle?'on':''}" data-action="shuffle">${icon('shuffle')} 셔플</button></div></div><div class="progress"><i style="width:${((state.roundIndex+1)/state.round.length)*100}%"></i></div><button class="flashcard ${state.revealed?'revealed':''}" data-action="reveal"><span class="card-label">${state.revealed?'뜻':state.language}</span><strong>${state.revealed?word.back:word.front}</strong><em>${state.revealed?(extra||'뜻을 확인했어요'):'카드를 눌러 뜻 확인하기'}</em><small>${state.revealed?'다시 눌러 단어 보기':'탭해서 뒤집기'}</small></button><div class="answer-row"><button class="soft danger" data-action="dontknow">아직 어려워요</button><button class="primary" data-action="know">알겠어요 ${icon('chev')}</button></div><p class="hint">모르는 단어만 모아 다시 보여드려요.</p>`;
+  return `${languagePill()}<div class="study-meta"><span>${state.roundIndex + 1} / ${state.round.length}</span><div style="display:flex;gap:6px">${completeBtn}<button class="toggle" data-action="ask-ai-word" data-word="${word.id}">💬 AI</button><button class="toggle" data-action="share-deck">🔗 공유</button><button class="toggle ${state.shuffle?'on':''}" data-action="shuffle">${icon('shuffle')} 셔플</button></div></div><div class="progress"><i style="width:${((state.roundIndex+1)/state.round.length)*100}%"></i></div><button class="flashcard ${state.revealed?'revealed':''}" data-action="reveal"><span class="card-label">${state.revealed?'뜻':state.language}</span><strong>${state.revealed?word.back:word.front}</strong><em>${state.revealed?(extra||'뜻을 확인했어요'):'카드를 눌러 뜻 확인하기'}</em><small>${state.revealed?'다시 눌러 단어 보기':'탭해서 뒤집기'}</small></button><div class="answer-row"><button class="soft danger" data-action="dontknow">아직 어려워요</button><button class="primary" data-action="know">알겠어요 ${icon('chev')}</button></div><p class="hint">모르는 단어를 누르면 오답노트에도 자동으로 기록돼요.</p>`;
 }
 function buildOptions(word, field) {
-  const pool = modeDecks().flatMap(d=>d.words);
+  const pool = langDecks().flatMap(d=>d.words);
   const source = pool.length ? pool : (deck().words.length ? deck().words : quizWords());
   const correctVal = word[field];
   const distractors = [...new Set(source.filter(x=>x[field] && x[field]!==correctVal).map(x=>x[field]))].sort(()=>.5-Math.random()).slice(0,3);
@@ -672,9 +671,29 @@ function quizWords() {
   const ids = state.quizDeckIds.length ? state.quizDeckIds : [state.deckId];
   return decks.filter(d => ids.includes(d.id)).flatMap(d => d.words);
 }
-function quizTypeTabs() {
-  if (state.language !== '중국어') return [['choice','객관식'],['spell','뜻 입력'],['write','단어 쓰기'],['voice','말하기']];
-  return [['choice','한자→한국어'],['spell','한자 입력'],['pinyin','한자→병음'],['hanzi-write','한자 쓰기'],['ko-char','한국어→한자'],['voice','말하기']];
+// 네이티브 앱은 기기의 실제 음성 인식기를 쓰지만, 웹/PWA는 브라우저의 Web Speech API에 의존한다 -
+// 이건 대부분의 모바일 브라우저(iOS Safari 포함)에 아예 없어서, "말하기" 탭을 눌러도 조용히
+// 실패하는 경험을 준다. 그래서 지원 안 되는 환경에서는 탭을 비활성 표시로 바꾼다.
+function voiceSupported() {
+  return Capacitor.isNativePlatform() || !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+function quizGroups() {
+  const voice = { key: 'voice', label: '말하기', types: ['voice'], native: true };
+  if (state.language !== '중국어') return [
+    { key: 'choice', label: '객관식', types: ['choice'] },
+    { key: 'spell', label: '뜻 입력', types: ['spell'] },
+    { key: 'write', label: '단어 쓰기', types: ['write'] },
+    voice,
+  ];
+  // 중국어는 방향(한자→한국어/한국어→한자)과 답변 방식(고르기/입력/병음)의 조합이 많아 예전엔
+  // 탭이 6개였다. 상위 탭은 비중국어와 같은 4개로 맞추고, 방향/병음처럼 세부 선택이 필요한
+  // 것만 탭 아래 작은 서브 탭으로 내렸다.
+  return [
+    { key: 'choice', label: '객관식', types: ['choice', 'ko-char'], subLabels: { choice: '한자→한국어', 'ko-char': '한국어→한자' } },
+    { key: 'spell', label: '입력', types: ['spell', 'pinyin'], subLabels: { spell: '한자→한국어', pinyin: '한자→병음' } },
+    { key: 'hanzi-write', label: '쓰기', types: ['hanzi-write'] },
+    voice,
+  ];
 }
 function quizConfig(type, word) {
   const meaningLabel = state.language === '중국어' ? '한자의 뜻은?' : `다음 ${state.language}의 뜻은?`;
@@ -691,7 +710,10 @@ function quizConfig(type, word) {
 }
 function quiz() {
   const list = quizWords();
-  if (!quizTypeTabs().some(([v])=>v===state.quizType)) state.quizType = quizTypeTabs()[0][0];
+  const groups = quizGroups();
+  const voiceOk = voiceSupported();
+  const allowedTypes = groups.filter(g=>!(g.native && !voiceOk)).flatMap(g=>g.types);
+  if (!allowedTypes.includes(state.quizType)) state.quizType = allowedTypes[0];
   const deckSelectBtn = state.quizSource === 'deck' ? `<button class="toggle" data-action="quiz-deck-modal">🗂 단어장 ${state.quizDeckIds.length||1}개 선택됨 ${icon('chev')}</button>` : '';
   if (!list.length) {
     return state.quizSource === 'mistakes'
@@ -706,7 +728,7 @@ function quiz() {
   const a = state.answered;
   const revealLine = `${word.front}${word.pinyin?' ('+word.pinyin+')':''} · ${word.back}`;
   const body = a
-    ? `<div class="quiz-card ${a.correct?'flash-correct':'flash-incorrect'}"><span class="card-label">${a.correct?'정답이에요! 🎉':'아쉬워요'}</span><strong>${escape(revealLine)}</strong>${a.correct?'':`<em>내가 답한 것: ${escape(a.value)}</em>`}<p class="hint">이 단어, 얼마나 잘 기억하고 있었나요?</p><div class="rate-row"><button class="rate-btn again" data-rate="0">다시</button><button class="rate-btn hard" data-rate="3">어려움</button><button class="rate-btn good" data-rate="4">보통</button><button class="rate-btn easy" data-rate="5">쉬움</button></div></div>`
+    ? `<div class="quiz-card ${a.correct?'flash-correct':'flash-incorrect'}"><span class="card-label">${a.correct?'정답이에요! 🎉':'아쉬워요'}</span><strong>${escape(revealLine)}</strong>${a.correct?'':`<em>내가 답한 것: ${escape(a.value)}</em>`}${a.correct?'':`<button class="toggle" data-action="ask-ai-word" data-word="${word.id}">💬 AI에게 물어보기</button>`}<p class="hint">이 단어, 얼마나 잘 기억하고 있었나요?</p><div class="rate-row"><button class="rate-btn again" data-rate="0">다시</button><button class="rate-btn hard" data-rate="3">어려움</button><button class="rate-btn good" data-rate="4">보통</button><button class="rate-btn easy" data-rate="5">쉬움</button></div></div>`
     : `<div class="quiz-card"><span class="card-label">${cfg.label}</span><strong>${escape(cfg.prompt||'')}</strong>${
         forceChoice
           ? `<div class="choices">${buildOptions(word,cfg.field).map(o=>`<button data-answer="${escape(o)}">${escape(o)}</button>`).join('')}</div>`
@@ -714,7 +736,14 @@ function quiz() {
             ? `<button class="voice-btn" data-action="voice">🎙 말하기 시작</button><p id="voice-result" class="hint"></p>`
             : `<form id="spell-form"><input autocomplete="off" placeholder="${cfg.field==='pinyin'?'성조까지 정확히 입력 (예: nǐ hǎo)':cfg.field==='front'?(state.language==='중국어'?'한자로 입력하세요':`${state.language}로 입력하세요`):'한국어 뜻을 입력하세요'}" /><button class="primary">확인</button></form>`
       }</div>`;
-  return `${languagePill()}${state.quizSource==='mistakes'?'<p class="intro">오답 복습 퀴즈</p>':deckSelectBtn}<div class="quiz-types">${quizTypeTabs().map(([v,label,disabled])=>`<button class="${type===v?'active':''} ${disabled?'disabled':''}" data-quiz="${v}" ${disabled?'data-disabled="1"':''}>${label}${disabled?' <small>준비 중</small>':''}</button>`).join('')}</div>${body}`;
+  const currentGroup = groups.find(g=>g.types.includes(type)) || groups[0];
+  const tabsHtml = groups.map(g=>{
+    const disabled = g.native && !voiceOk;
+    const gType = g.types.includes(type) ? type : g.types[0];
+    return `<button class="${currentGroup===g?'active':''} ${disabled?'disabled':''}" data-quiz="${gType}" ${disabled?'data-disabled="1"':''}>${g.label}${disabled?' <small>네이티브 앱에서만</small>':''}</button>`;
+  }).join('');
+  const subTabsHtml = currentGroup.types.length>1 ? `<div class="quiz-types" style="margin-top:-9px">${currentGroup.types.map(t=>`<button class="${type===t?'active':''}" data-quiz="${t}">${currentGroup.subLabels[t]}</button>`).join('')}</div>` : '';
+  return `${languagePill()}${state.quizSource==='mistakes'?'<p class="intro">오답 복습 퀴즈</p>':deckSelectBtn}<div class="quiz-types">${tabsHtml}</div>${subTabsHtml}${body}`;
 }
 function dueLabel(dateStr) {
   const today = todayStr();
@@ -726,14 +755,16 @@ function mistakes() {
   const today = todayStr();
   const due = state.mistakes.filter(w => (w.next_review_date||today) <= today);
   if (!state.mistakes.length) return `${languagePill()}<p class="intro">틀린 단어를 모아 다시 익혀 보세요.</p><div class="empty"><div>✓</div><h2>아직 오답이 없어요</h2><p>퀴즈에서 틀린 단어가 이곳에 쌓입니다.</p><button class="primary" data-screen="quiz">퀴즈 시작하기</button></div>`;
-  return `${languagePill()}<p class="intro">틀린 단어를 모아 다시 익혀 보세요.</p>${due.length?`<button class="primary" data-action="review-mistakes">오답 복습 퀴즈 시작 (${due.length}개)</button>`:`<p class="hint">지금은 복습할 단어가 없어요. 복습 주기가 되면 다시 표시돼요.</p>`}<div class="deck-list">${state.mistakes.map(w=>`<div class="mistake"><span>🔤</span><div><b>${escape(w.front)}</b><small>${escape(w.back)}${w.wrong_count?` · ${w.wrong_count}번 틀림`:''} · ${dueLabel(w.next_review_date)}</small></div><button data-action="delete-mistake" data-word="${w.id}">삭제</button></div>`).join('')}</div>`;
+  return `${languagePill()}<p class="intro">틀린 단어를 모아 다시 익혀 보세요.</p>${due.length?`<button class="primary" data-action="review-mistakes">오답 복습 퀴즈 시작 (${due.length}개)</button>`:`<p class="hint">지금은 복습할 단어가 없어요. 복습 주기가 되면 다시 표시돼요.</p>`}<div class="deck-list">${state.mistakes.map(w=>`<div class="mistake"><span>🔤</span><div><b>${escape(w.front)}</b><small>${escape(w.back)}${w.wrong_count?` · ${w.wrong_count}번 틀림`:''} · ${dueLabel(w.next_review_date)}</small></div><button data-action="ask-ai-word" data-word="${w.id}">💬 AI</button><button data-action="delete-mistake" data-word="${w.id}">삭제</button></div>`).join('')}</div>`;
 }
 function create(){
   const chinese = state.language === '중국어';
-  return `${languagePill()}<div class="create-head"><h2>새 단어장을 만들어 볼까요?</h2><p>직접 입력하거나 사진에서 단어를 찾아볼 수 있어요.</p></div><form id="create-form" class="create-form"><label>단어장 이름<input name="name" required placeholder="예: DELE A1" /></label><label>${chinese?'한자':state.language+' 단어'}<input name="front" required placeholder="${chinese?'예: 你好':'예: aprender'}" /></label>${chinese?'<label>병음<input name="pinyin" required placeholder="예: nǐ hǎo" /></label>':''}<label>한국어 뜻<input name="back" required placeholder="예: 배우다" /></label><label>다른 표현 <small>(선택, 쉼표로 구분)</small><input name="synonyms" placeholder="예: 학습하다" /></label><label>예문 <small>(선택)</small><input name="example" placeholder="예: Quiero aprender español." /></label><label>예문 뜻 <small>(선택)</small><input name="example_ko" placeholder="예: 스페인어를 배우고 싶어요." /></label><button class="primary" type="submit">단어장에 추가하기</button></form><div class="ocr-box"><b>📷 사진에서 단어 자동 추출</b><p>사진을 올리면 AI가 ${state.language} 단어와 한국어 뜻을 알아서 찾아드려요.</p><input id="image-input" type="file" accept="image/*" /><button class="soft" data-action="ocr">${state.ocrBusy?'분석 중…':'사진에서 찾기'}</button>${state.ocrCandidates.length?`<div class="ocr-results">${state.ocrCandidates.map((c,i)=>`<div class="ocr-item"><div><b>${escape(c.front)}</b><small>${escape(c.back)}${c.pinyin?' · '+escape(c.pinyin):''}</small></div><button data-action="add-ocr-word" data-index="${i}">추가</button></div>`).join('')}</div>`:''}</div>`;
+  return `${languagePill()}<div class="create-head"><h2>새 단어장을 만들어 볼까요?</h2><p>직접 입력하거나 사진에서 단어를 찾아볼 수 있어요.</p></div><form id="create-form" class="create-form"><label>단어장 이름<input name="name" required placeholder="예: DELE A1" /></label><label>${chinese?'한자':state.language+' 단어'}<input name="front" required placeholder="${chinese?'예: 你好':'예: aprender'}" /></label>${chinese?'<label>병음<input name="pinyin" required placeholder="예: nǐ hǎo" /></label>':''}<label>한국어 뜻<input name="back" required placeholder="예: 배우다" /></label><details class="create-more"><summary>다른 표현·예문 추가하기 <small>선택</small></summary><label>다른 표현 <small>(선택, 쉼표로 구분)</small><input name="synonyms" placeholder="예: 학습하다" /></label><label>예문 <small>(선택)</small><input name="example" placeholder="예: Quiero aprender español." /></label><label>예문 뜻 <small>(선택)</small><input name="example_ko" placeholder="예: 스페인어를 배우고 싶어요." /></label></details><button class="primary" type="submit">단어장에 추가하기</button></form><div class="ocr-box"><b>📷 사진에서 단어 자동 추출</b><p>사진을 올리면 AI가 ${state.language} 단어와 한국어 뜻을 알아서 찾아드려요.</p><input id="image-input" type="file" accept="image/*" /><button class="soft" data-action="ocr">${state.ocrBusy?'분석 중…':'사진에서 찾기'}</button>${state.ocrCandidates.length?`<div class="ocr-results">${state.ocrCandidates.map((c,i)=>`<div class="ocr-item"><div><b>${escape(c.front)}</b><small>${escape(c.back)}${c.pinyin?' · '+escape(c.pinyin):''}</small></div><button data-action="add-ocr-word" data-index="${i}">추가</button></div>`).join('')}</div>`:''}</div>`;
 }
 function aiChat(){
-  return `${languagePill()}<div class="ai-chat">${state.aiMessages.length?state.aiMessages.map(m=>`<div class="ai-msg ${m.role}">${escape(m.content)}</div>`).join(''):'<p class="hint">문법, 표현, 회화에 대해 무엇이든 물어보세요.</p>'}${state.aiBusy?'<div class="ai-msg assistant">생각 중…</div>':''}</div><form id="ai-form" class="ai-form"><input name="q" autocomplete="off" placeholder="예: gracias랑 muchas gracias 차이가 뭐야?" /><button class="primary" type="submit">보내기</button></form>`;
+  const ctx = state.aiContext;
+  const ctxChip = ctx ? `<button class="toggle on" data-action="clear-ai-context">💬 "${escape(ctx.front)}" 관련 질문 중 · 다른 질문으로 ✕</button>` : '';
+  return `${languagePill()}${ctxChip}<div class="ai-chat">${state.aiMessages.length?state.aiMessages.map(m=>`<div class="ai-msg ${m.role}">${escape(m.content)}</div>`).join(''):'<p class="hint">문법, 표현, 회화에 대해 무엇이든 물어보세요.</p>'}${state.aiBusy?'<div class="ai-msg assistant">생각 중…</div>':''}</div><form id="ai-form" class="ai-form"><input name="q" autocomplete="off" placeholder="예: gracias랑 muchas gracias 차이가 뭐야?" /><button class="primary" type="submit">보내기</button></form>`;
 }
 function buildLevelTestQuestions(language) {
   const levels = levelsFor(language);
@@ -797,28 +828,28 @@ function levelTestScreen() {
 function onboarding(){
   const o = state.onboard;
   if (!o) return '';
-  if (o.step === 0) return onboardChoiceStep('성별을 알려주시겠어요?', '원하지 않으면 건너뛰어도 돼요.', ['여성','남성','기타'], o.gender, 'onboard-gender', false);
-  if (o.step === 1) return onboardChoiceStep('연령대를 알려주시겠어요?', '원하지 않으면 건너뛰어도 돼요.', ['10대','20대','30대','40대','50대 이상'], o.age, 'onboard-age', false);
-  if (o.step === 2) return onboardChoiceStep('배우고 싶은 언어를 골라주세요', '여러 개 선택할 수 있어요.', ['스페인어','영어','중국어'], o.languages, 'onboard-language', true);
-  return onboardGoals();
+  if (o.step === 0) return onboardChoiceStep('배우고 싶은 언어를 골라주세요', '여러 개 선택할 수 있어요.', ['스페인어','영어','중국어'], o.languages, 'onboard-language', true);
+  return onboardLevels();
 }
 function onboardChoiceStep(title, hint, options, selected, action, multi){
   const isSel = v => multi ? (selected||[]).includes(v) : selected===v;
   return `<div class="create-head"><h2>${escape(title)}</h2><p>${escape(hint)}</p></div><div class="deck-list">${options.map(v=>`<button class="deck-row ${isSel(v)?'selected':''}" data-action="${action}" data-value="${v}"><span style="flex:1">${escape(v)}</span>${isSel(v)?'<b>✓</b>':''}</button>`).join('')}</div><div class="onboard-actions"><button class="soft" data-action="onboard-skip">건너뛰기</button><button class="primary" data-action="onboard-next">다음 ${icon('chev')}</button></div>`;
 }
-function onboardGoals(){
+function onboardLevels(){
   const o = state.onboard;
-  const lang = o.languages[o.goalIndex] || o.languages[0];
+  const lang = o.languages[o.langIndex] || o.languages[0];
   const level = o.levels[lang];
-  const goals = o.goals[lang] || [];
   const levelOptions = levelsFor(lang);
-  const goalOptions = ['여행','커리어','취미','친목'];
-  return `<div class="create-head"><h2>${escape(lang)} 학습 정보</h2><p>현재 수준과 목표를 알려주세요. (${o.goalIndex+1}/${o.languages.length})</p></div><div class="section-title"><h2>현재 수준</h2><button data-action="start-level-test" data-lang="${lang}">🎯 레벨 테스트로 정하기</button></div><div class="deck-list">${levelOptions.map(v=>`<button class="deck-row ${level===v?'selected':''}" data-action="onboard-level" data-lang="${lang}" data-value="${v}"><span style="flex:1">${escape(v)}</span>${level===v?'<b>✓</b>':''}</button>`).join('')}</div><div class="section-title"><h2>목표 (여러 개 선택 가능)</h2></div><div class="deck-list">${goalOptions.map(v=>`<button class="deck-row ${goals.includes(v)?'selected':''}" data-action="onboard-goal" data-lang="${lang}" data-value="${v}"><span style="flex:1">${escape(v)}</span>${goals.includes(v)?'<b>✓</b>':''}</button>`).join('')}</div><div class="onboard-actions"><button class="primary" data-action="onboard-next">${o.goalIndex+1<o.languages.length?'다음 언어':'완료'} ${icon('chev')}</button></div>`;
+  return `<div class="create-head"><h2>${escape(lang)} 학습 정보</h2><p>현재 수준을 알려주세요. (${o.langIndex+1}/${o.languages.length})</p></div><div class="section-title"><h2>현재 수준</h2><button data-action="start-level-test" data-lang="${lang}">🎯 레벨 테스트로 정하기</button></div><div class="deck-list">${levelOptions.map(v=>`<button class="deck-row ${level===v?'selected':''}" data-action="onboard-level" data-lang="${lang}" data-value="${v}"><span style="flex:1">${escape(v)}</span>${level===v?'<b>✓</b>':''}</button>`).join('')}</div><div class="onboard-actions"><button class="primary" data-action="onboard-next">${o.langIndex+1<o.languages.length?'다음 언어':'완료'} ${icon('chev')}</button></div>`;
 }
-function nav(){return state.user && state.screen!=='onboarding' && state.screen!=='nickname'?`<nav><button class="${state.screen==='home'?'active':''}" data-screen="home">${icon('home')}<span>홈</span></button><button class="${state.screen==='study'?'active':''}" data-screen="study">${icon('book')}<span>단어장</span></button><button class="${state.screen==='quiz'?'active':''}" data-screen="quiz">${icon('quiz')}<span>퀴즈</span></button><button class="${state.screen==='mistakes'?'active':''}" data-screen="mistakes">${icon('redo')}<span>오답</span></button></nav>`:'';}
+function nav(){
+  if (!state.user || state.screen==='onboarding' || state.screen==='nickname') return '';
+  const studyLabel = deck()?.name || '단어장';
+  return `<nav><button class="${state.screen==='home'?'active':''}" data-screen="home">${icon('home')}<span>홈</span></button><button class="${state.screen==='study'?'active':''}" data-screen="study">${icon('book')}<span style="max-width:46px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block">${escape(studyLabel)}</span></button><button class="${state.screen==='quiz'?'active':''}" data-screen="quiz">${icon('quiz')}<span>퀴즈</span></button><button class="${state.screen==='mistakes'?'active':''}" data-screen="mistakes">${icon('redo')}<span>오답</span></button></nav>`;
+}
 function drawer(){
   const name = state.nickname || state.user?.email?.split('@')[0] || '';
-  return `<div class="overlay ${state.drawer?'show':''}" data-action="drawer"></div><aside class="drawer ${state.drawer?'show':''}"><div class="brand"><div class="logo">P</div><b>PolyGo</b><button data-action="drawer">×</button></div><div class="profile"><span class="avatar">${escape(name.slice(0,1).toUpperCase()||'P')}</span><div><b>${escape(name)}</b><small>클라우드 동기화 사용 중</small></div></div><div class="drawer-links"><button data-action="account">${icon('user')} 회원 정보 ${icon('chev')}</button><button data-action="level-modal">🎯 학습 레벨 설정 ${icon('chev')}</button><button data-screen="ai">💬 AI에게 질문하기 ${icon('chev')}</button><button data-action="mode-modal">${icon('book')} 학습 모드 ${icon('chev')}</button><button data-action="settings">${icon('settings')} 설정 ${icon('chev')}</button></div><p>v0.4 · 계정에 안전하게 동기화됨</p></aside>`;
+  return `<div class="overlay ${state.drawer?'show':''}" data-action="drawer"></div><aside class="drawer ${state.drawer?'show':''}"><div class="brand"><div class="logo">P</div><b>PolyGo</b><button data-action="drawer">×</button></div><div class="profile"><span class="avatar">${escape(name.slice(0,1).toUpperCase()||'P')}</span><div><b>${escape(name)}</b><small>클라우드 동기화 사용 중</small></div></div><div class="drawer-links"><button data-action="account">${icon('user')} 회원 정보 ${icon('chev')}</button><button data-action="level-modal">🎯 학습 레벨 설정 ${icon('chev')}</button><button data-screen="ai">💬 AI에게 질문하기 ${icon('chev')}</button><button data-action="settings">${icon('settings')} 설정 ${icon('chev')}</button></div><p>v0.4 · 계정에 안전하게 동기화됨</p></aside>`;
 }
 function modal(){
   if (!state.modal) return '';
@@ -828,16 +859,14 @@ function modal(){
     ? `<h2>설정</h2><button class="choice-line" data-action="dark">${icon('sun')} 다크 모드 <span class="switch ${state.dark?'on':''}"></span></button><a class="choice-line" href="mailto:eunseosw0520@naver.com">✉ 관리자 문의</a>`
     : state.modal === 'level'
     ? `<h2>${escape(state.language)} 학습 레벨</h2><p class="modal-copy">레벨을 고르면 그 레벨에 맞는 새 단어장이 추가돼요. 다른 언어의 레벨을 바꾸려면 학습 언어를 먼저 바꾼 뒤 다시 열어주세요.</p><button class="choice-line" data-action="start-level-test">🎯 레벨 테스트로 정하기</button>${levelsFor(state.language).map(v=>`<button class="choice-line ${state.userLevels[state.language]===v?'selected':''}" data-action="set-level" data-value="${v}">${v} ${state.userLevels[state.language]===v?'<b>✓</b>':''}</button>`).join('')}`
-    : state.modal === 'mode'
-    ? `<h2>학습 모드</h2><p class="modal-copy">코스 학습은 레벨에 맞춰 준비된 단어장으로, 내 단어장은 직접 만든 단어장으로 학습해요.</p><button class="choice-line ${state.deckMode==='course'?'selected':''}" data-action="set-mode" data-value="course">📘 코스 학습 모드 ${state.deckMode==='course'?'<b>✓</b>':''}<small>레벨별 단어장으로 순서대로 학습</small></button><button class="choice-line ${state.deckMode==='custom'?'selected':''}" data-action="set-mode" data-value="custom">📓 내 단어장 모드 ${state.deckMode==='custom'?'<b>✓</b>':''}<small>내가 직접 만든 단어장으로 학습</small></button>`
     : state.modal === 'quiz-decks'
-    ? `<h2>퀴즈에 포함할 단어장</h2><p class="modal-copy">선택한 단어장들의 단어를 섞어서 퀴즈를 봐요. 최소 1개는 선택돼 있어야 해요.</p>${modeDecks().map(d=>`<button class="choice-line ${state.quizDeckIds.includes(d.id)?'selected':''}" data-action="toggle-quiz-deck" data-deck="${d.id}">${d.icon} ${escape(d.name)} <small>${d.words.length}개</small> <b>✓</b></button>`).join('')}`
+    ? `<h2>퀴즈에 포함할 단어장</h2><p class="modal-copy">선택한 단어장들의 단어를 섞어서 퀴즈를 봐요. 코스 단어장과 내 단어장을 함께 고를 수 있어요. 최소 1개는 선택돼 있어야 해요.</p>${langDecks().map(d=>`<button class="choice-line ${state.quizDeckIds.includes(d.id)?'selected':''}" data-action="toggle-quiz-deck" data-deck="${d.id}">${d.source==='course'?'📘':'📓'} ${d.icon} ${escape(d.name)} <small>${d.words.length}개</small> <b>✓</b></button>`).join('')}`
     : (() => {
         const providers = (state.user?.identities||[]).map(i=>i.provider);
         const googleBtn = providers.includes('google')
           ? '<button class="choice-line disabled">구글 계정 연동 <small>연동됨</small></button>'
           : '<button class="choice-line" data-action="link-google">구글 계정 연동</button>';
-        return `<h2>회원 정보</h2><p class="modal-copy">${escape(state.nickname||'')} · ${escape(state.user?.email||'')}</p><button class="choice-line" data-action="change-password">비밀번호 변경</button><button class="choice-line disabled">네이버 계정 연동 <small>준비 중</small></button><button class="choice-line disabled">카카오 계정 연동 <small>준비 중</small></button>${googleBtn}<button class="choice-line" data-action="logout">로그아웃</button><button class="choice-line" data-action="request-delete-account">회원 탈퇴</button>`;
+        return `<h2>회원 정보</h2><p class="modal-copy">${escape(state.nickname||'')} · ${escape(state.user?.email||'')}</p><button class="choice-line" data-action="change-password">비밀번호 변경</button>${googleBtn}<button class="choice-line" data-action="logout">로그아웃</button><button class="choice-line" data-action="request-delete-account">회원 탈퇴</button>`;
       })();
   return `<div class="modal-wrap"><div class="modal-back" data-action="close-modal"></div><section class="modal"><button class="close" data-action="close-modal">×</button>${body}</section></div>`;
 }
@@ -859,9 +888,9 @@ function goto(screen) {
   state.screen = screen; state.revealed = false; state.drawer = false;
   if (screen === 'study' && state.roundDeckId !== state.deckId) startRound();
   if (screen === 'quiz') {
-    const validIds = new Set(modeDecks().map(d=>d.id));
+    const validIds = new Set(langDecks().map(d=>d.id));
     if (!state.quizDeckIds.some(id=>validIds.has(id))) {
-      state.quizDeckIds = state.deckId && validIds.has(state.deckId) ? [state.deckId] : (modeDecks()[0] ? [modeDecks()[0].id] : []);
+      state.quizDeckIds = state.deckId && validIds.has(state.deckId) ? [state.deckId] : (langDecks()[0] ? [langDecks()[0].id] : []);
     } else {
       state.quizDeckIds = state.quizDeckIds.filter(id=>validIds.has(id));
     }
@@ -904,8 +933,7 @@ async function action(a, el) {
       state.language = lang;
       state.quizType = 'choice';
       await ensureLanguageSeed(lang);
-      const langDecks = decks.filter(dk=>dk.language===lang && dk.source===state.deckMode);
-      state.deckId = langDecks[0]?.id || null;
+      state.deckId = decks.find(dk=>dk.language===lang)?.id || null;
       state.screen = 'home';
     }
   }
@@ -915,24 +943,13 @@ async function action(a, el) {
     state.modal = null;
     await setUserLevel(state.language, level);
   }
-  else if (a === 'mode-modal') state.modal = 'mode';
-  else if (a === 'set-mode') {
-    const mode = el.dataset.value;
-    state.modal = null;
-    if (mode !== state.deckMode) {
-      state.deckMode = mode;
-      localStorage.setItem('lingo-deck-mode', mode);
-      state.deckId = modeDecks()[0]?.id || null;
-      state.screen = 'home';
-    }
-  }
   else if (a === 'logout') { await supabase.auth.signOut(); state.user=null; decks=[]; state.mistakes=[]; state.nickname=''; state.drawer=false; state.modal=null; }
   else if (a === 'dark') { state.dark = !state.dark; localStorage.setItem('lingo-dark', state.dark); }
   else if (a === 'reveal') state.revealed = !state.revealed;
   else if (a === 'shuffle') { state.shuffle = !state.shuffle; startRound(); }
   else if (a === 'know' || a === 'dontknow') {
     const word = state.round[state.roundIndex];
-    if (a === 'dontknow') state.unknownIds.push(word.id);
+    if (a === 'dontknow') { state.unknownIds.push(word.id); await recordReview(word, 0); }
     state.roundIndex++; state.revealed = false;
     if (state.roundIndex >= state.round.length) {
       if (state.unknownIds.length === 0) state.studyDone = true;
@@ -968,17 +985,18 @@ async function action(a, el) {
   else if (a === 'voice') { await listenForAnswer(); return; }
   else if (a === 'ocr') { await readImage(); return; }
   else if (a === 'add-ocr-word') { await addOcrWord(Number(el.dataset.index)); return; }
-  else if (a === 'onboard-gender') state.onboard.gender = el.dataset.value;
-  else if (a === 'onboard-age') state.onboard.age = el.dataset.value;
+  else if (a === 'ask-ai-word') {
+    const wordId = el.dataset.word;
+    const word = state.mistakes.find(w=>w.id===wordId) || state.round.find(w=>w.id===wordId) || quizWords().find(w=>w.id===wordId) || deck().words.find(w=>w.id===wordId);
+    if (word) await askAboutWord(word);
+    return;
+  }
+  else if (a === 'clear-ai-context') { state.aiContext = null; state.aiMessages = []; }
   else if (a === 'onboard-language') {
     const v = el.dataset.value, langs = state.onboard.languages;
     state.onboard.languages = langs.includes(v) ? langs.filter(x=>x!==v) : [...langs, v];
   }
   else if (a === 'onboard-level') state.onboard.levels[el.dataset.lang] = el.dataset.value;
-  else if (a === 'onboard-goal') {
-    const lang = el.dataset.lang, v = el.dataset.value, cur = state.onboard.goals[lang] || [];
-    state.onboard.goals[lang] = cur.includes(v) ? cur.filter(x=>x!==v) : [...cur, v];
-  }
   else if (a === 'onboard-skip' || a === 'onboard-next') { await advanceOnboarding(); return; }
   else if (a === 'start-level-test') {
     const lang = el.dataset.lang || state.language;
@@ -1114,33 +1132,30 @@ async function submitNickname(e) {
   if (!nickname) return alert('닉네임을 입력해 주세요.');
   state.nickname = nickname;
   await supabase.from('profiles').upsert({ id: state.user.id, nickname });
-  state.onboard = { step: 0, gender: null, age: null, languages: [], goalIndex: 0, levels: {}, goals: {} };
+  state.onboard = { step: 0, languages: [], langIndex: 0, levels: {} };
   state.screen = 'onboarding';
   render();
 }
 async function advanceOnboarding() {
   const o = state.onboard;
-  if (o.step < 2) { o.step++; render(); return; }
-  if (o.step === 2) {
+  if (o.step === 0) {
     if (!o.languages.length) o.languages = [state.language];
-    o.step = 3; o.goalIndex = 0; render(); return;
+    o.step = 1; o.langIndex = 0; render(); return;
   }
-  if (o.goalIndex + 1 < o.languages.length) { o.goalIndex++; render(); return; }
+  if (o.langIndex + 1 < o.languages.length) { o.langIndex++; render(); return; }
   await finishOnboarding();
 }
 async function finishOnboarding() {
   const o = state.onboard;
-  await supabase.from('profiles').update({ gender: o.gender, age_range: o.age }).eq('id', state.user.id);
   const langs = o.languages.length ? o.languages : [state.language];
   for (const lang of langs) {
     const level = o.levels[lang] || levelsFor(lang)[0];
-    await supabase.from('user_languages').upsert({ user_id: state.user.id, language: lang, level, goals: (o.goals[lang]||[]).join(',') }, { onConflict: 'user_id,language' });
+    await supabase.from('user_languages').upsert({ user_id: state.user.id, language: lang, level }, { onConflict: 'user_id,language' });
     state.userLevels[lang] = level;
     await ensureLanguageSeed(lang, level);
   }
   state.language = langs[0];
-  const langDecks = modeDecks();
-  state.deckId = langDecks[0]?.id || null;
+  state.deckId = langDecks()[0]?.id || null;
   state.onboard = null;
   goto('home');
 }
@@ -1186,8 +1201,7 @@ async function loadCloudData(seed) {
   if (error) return alert('단어장을 불러오지 못했어요: ' + error.message);
   decks = data || [];
   if (seed !== false) await ensureLanguageSeed(state.language);
-  const langDecks = modeDecks();
-  state.deckId = langDecks[0]?.id || decks[0]?.id || null;
+  state.deckId = langDecks()[0]?.id || decks[0]?.id || null;
   const { data: m } = await supabase.from('mistakes').select('word_id,wrong_count,next_review_at,ease_factor,interval_days,repetition_count,next_review_date,words(id,front,back,example,example_ko,synonyms,pinyin)').eq('owner_id', state.user.id);
   state.mistakes = (m||[]).map(x => x.words ? { ...x.words, wrong_count: x.wrong_count, next_review_at: x.next_review_at, ease_factor: x.ease_factor, interval_days: x.interval_days, repetition_count: x.repetition_count, next_review_date: x.next_review_date } : null).filter(Boolean);
 }
@@ -1267,19 +1281,32 @@ async function addOcrWord(index){
   state.ocrCandidates = state.ocrCandidates.filter((_, i) => i !== index);
   render();
 }
+async function sendToAI(q){
+  state.aiMessages.push({ role: 'user', content: q });
+  state.aiBusy = true;
+  render();
+  const { data, error } = await supabase.functions.invoke('ask-ai', { body: { messages: state.aiMessages.map(m=>({role:m.role,content:m.content})), language: state.language, word: state.aiContext } });
+  state.aiBusy = false;
+  if (error || data?.error) state.aiMessages.push({ role: 'assistant', content: '죄송해요, 답변을 가져오지 못했어요: ' + (data?.error || error?.message || '알 수 없는 오류') });
+  else state.aiMessages.push({ role: 'assistant', content: stripMarkdown(data.reply || '') });
+  render();
+}
 async function askAI(e){
   e.preventDefault();
   const f = new FormData(e.target);
   const q = (f.get('q')||'').trim();
   if (!q) return;
-  state.aiMessages.push({ role: 'user', content: q });
-  state.aiBusy = true;
+  await sendToAI(q);
+}
+// "AI에게 물어보기" 버튼(오답노트/학습/퀴즈 화면)에서 진입 - 지금 보고 있는 단어를 컨텍스트로
+// 붙여서 질문을 자동으로 시작한다. 이렇게 해야 AI 튜터가 범용 챗봇이 아니라 사용자의
+// 실제 단어장/오답과 연결된 기능으로 동작한다.
+async function askAboutWord(word){
+  state.aiContext = { front: word.front, back: word.back, example: word.example||'', pinyin: word.pinyin||'', language: state.language };
+  state.screen = 'ai';
+  state.drawer = false;
   render();
-  const { data, error } = await supabase.functions.invoke('ask-ai', { body: { messages: state.aiMessages.map(m=>({role:m.role,content:m.content})), language: state.language } });
-  state.aiBusy = false;
-  if (error || data?.error) state.aiMessages.push({ role: 'assistant', content: '죄송해요, 답변을 가져오지 못했어요: ' + (data?.error || error?.message || '알 수 없는 오류') });
-  else state.aiMessages.push({ role: 'assistant', content: stripMarkdown(data.reply || '') });
-  render();
+  await sendToAI(`"${word.front}" (${word.back}) 이 단어 좀 설명해줘. 예문도 같이 보여줘.`);
 }
 let recognizing = false;
 async function listenForAnswer() {
@@ -1341,8 +1368,7 @@ async function handleSignedInUser(newUser) {
     state.screen = 'nickname';
   } else {
     await ensureLanguageSeed(state.language);
-    const langDecks = modeDecks();
-    state.deckId = langDecks[0]?.id || decks[0]?.id || null;
+    state.deckId = langDecks()[0]?.id || decks[0]?.id || null;
   }
   if (state.pendingShare) await claimSharedDeck(state.pendingShare);
 }
@@ -1394,7 +1420,7 @@ async function init() {
     state.user = { id: 'fake-user', email: 'fake@test.com', identities: [{provider:'email'}] };
     state.nickname = '테스터';
     decks = [];
-    state.deckId = null; state.language = '스페인어'; state.deckMode='course';
+    state.deckId = null; state.language = '스페인어';
     state.userLevels = {};
     state.screen = 'home';
     window.__debugState = state;
